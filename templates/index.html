@@ -1,0 +1,752 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard Geral - Meu Patrimônio{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <div class="flex justify-between items-center">
+        <h1 class="text-3xl font-bold text-gray-900">Dashboard Geral</h1>
+        <button onclick="updateData()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors">
+            <i class="fas fa-sync-alt mr-2"></i>
+            Atualizar Dados
+        </button>
+    </div>
+</div>
+
+<!-- Summary Cards Row 1 -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <!-- Total Patrimony Card -->
+        <div class="bg-white rounded-lg shadow-lg p-4 sm:p-6 card-shadow">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-blue-100 text-blue-600">
+                <i class="fas fa-wallet text-xl"></i>
+            </div>
+            <div class="ml-4">
+                <p class="text-gray-600 text-sm">Patrimônio Total</p>
+                <p id="totalPatrimony" class="text-2xl font-semibold text-gray-900">R$ 0,00</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Performance Card -->
+    <div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-green-100 text-green-600">
+                <i class="fas fa-chart-line text-xl"></i>
+            </div>
+            <div class="ml-4">
+                <p class="text-gray-600 text-sm">Rentabilidade Real</p>
+                <p id="performancePerc" class="text-2xl font-semibold text-gray-900">0,00%</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Monthly Investment Card -->
+    <div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-indigo-100 text-indigo-600">
+                <i class="fas fa-plus-circle text-xl"></i>
+            </div>
+            <div class="ml-4">
+                <p class="text-gray-600 text-sm">Aporte do Mês</p>
+                <p id="monthlyInvestment" class="text-2xl font-semibold text-gray-900">R$ 0,00</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Portfolio Evolution (Mini Chart) -->
+    <div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+        <div class="flex items-center justify-between mb-2">
+            <p class="text-gray-600 text-sm">Evolução (3M)</p>
+            <i class="fas fa-chart-area text-blue-500"></i>
+        </div>
+        <div class="h-16">
+            <canvas id="miniEvolutionChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Summary Cards Row 2 - Proventos -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <!-- Annual Dividends Paid -->
+    <div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-green-100 text-green-600">
+                <i class="fas fa-coins text-xl"></i>
+            </div>
+            <div class="ml-4">
+                <p class="text-gray-600 text-sm">Proventos Pagos (Ano)</p>
+                <p id="dividendsYearPaid" class="text-2xl font-semibold text-gray-900">R$ 0,00</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Annual Dividends Pending -->
+    <div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-orange-100 text-orange-600">
+                <i class="fas fa-clock text-xl"></i>
+            </div>
+            <div class="ml-4">
+                <p class="text-gray-600 text-sm">Proventos A Pagar (Ano)</p>
+                <p id="dividendsYearPending" class="text-2xl font-semibold text-gray-900">R$ 0,00</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Monthly Dividends Paid -->
+    <div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-purple-100 text-purple-600">
+                <i class="fas fa-calendar-check text-xl"></i>
+            </div>
+            <div class="ml-4">
+                <p class="text-gray-600 text-sm">Proventos Pagos (Mês)</p>
+                <p id="dividendsMonthPaid" class="text-2xl font-semibold text-gray-900">R$ 0,00</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Monthly Dividends Pending -->
+    <div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-red-100 text-red-600">
+                <i class="fas fa-calendar-times text-xl"></i>
+            </div>
+            <div class="ml-4">
+                <p class="text-gray-600 text-sm">Proventos A Pagar (Mês)</p>
+                <p id="dividendsMonthPending" class="text-2xl font-semibold text-gray-900">R$ 0,00</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Section -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+    <!-- Portfolio Composition Macro with Drill-down -->
+    <div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-semibold text-gray-900">Composição Macro</h2>
+            <div class="flex items-center space-x-2">
+                <select id="portfolioFilter" class="border border-gray-300 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="all">Visão Geral</option>
+                </select>
+                <button onclick="resetPortfolioFilter()" class="text-sm text-blue-600 hover:text-blue-800">
+                    <i class="fas fa-undo"></i>
+                </button>
+            </div>
+        </div>
+        <div class="relative h-80">
+            <canvas id="portfolioChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Portfolio Composition L1 with Drill-down -->
+    <div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-semibold text-gray-900">Composição por Categoria</h2>
+            <div class="flex items-center space-x-2">
+                <select id="portfolioFilterL1" class="border border-gray-300 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="all">Visão Geral</option>
+                </select>
+                <button onclick="resetPortfolioFilterL1()" class="text-sm text-blue-600 hover:text-blue-800">
+                    <i class="fas fa-undo"></i>
+                </button>
+            </div>
+        </div>
+        <div class="relative h-80">
+            <canvas id="portfolioChartL1"></canvas>
+        </div>
+    </div>
+
+    <!-- Location Distribution Chart -->
+    <div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-semibold text-gray-900">Brasil x Exterior</h2>
+            <select id="marketFilter" class="border border-gray-300 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="all">Todos</option>
+                <option value="BR">Brasil</option>
+                <option value="EXT">Exterior</option>
+            </select>
+        </div>
+        <div class="relative h-64">
+            <canvas id="locationChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Tables Section -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+    <!-- Investment Averages Table -->
+    <div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+        <h2 class="text-xl font-semibold text-gray-900 mb-4">Média de Aportes por Ano</h2>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="border-b">
+                    <tr>
+                        <th class="text-left py-2 font-medium text-gray-700">Ano</th>
+                        <th class="text-right py-2 font-medium text-gray-700">Média Mensal</th>
+                        <th class="text-right py-2 font-medium text-gray-700">Total</th>
+                    </tr>
+                </thead>
+                <tbody id="investmentAveragesTable">
+                    <!-- Data will be populated here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Dividends Yearly Summary -->
+    <div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+        <h2 class="text-xl font-semibold text-gray-900 mb-4">Proventos por Ano</h2>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="border-b">
+                    <tr>
+                        <th class="text-left py-2 font-medium text-gray-700">Ano</th>
+                        <th class="text-right py-2 font-medium text-gray-700">Total</th>
+                    </tr>
+                </thead>
+                <tbody id="dividendsYearlyTable">
+                    <!-- Data will be populated here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Activity -->
+<div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+    <h2 class="text-xl font-semibold text-gray-900 mb-4">Atividades Recentes do Mês</h2>
+    <div id="recentActivity" class="space-y-4">
+        <!-- Recent activity items will be populated here -->
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let locationChart, portfolioChart, portfolioChartL1, miniEvolutionChart;
+
+// Initialize dashboard
+document.addEventListener('DOMContentLoaded', function() {
+    loadDashboardData();
+});
+
+async function loadDashboardData() {
+    try {
+        // Load summary data
+        const summaryData = await apiRequest('/api/summary');
+        updateSummaryCards(summaryData);
+
+        // Load monthly investment
+        const monthlyInvestmentData = await apiRequest('/api/dashboard/monthly-investment');
+        updateMonthlyInvestment(monthlyInvestmentData);
+
+        // Load dividends summary
+        const dividendsData = await apiRequest('/api/dashboard/dividends-summary');
+        updateDividendsCards(dividendsData);
+
+        // Load location composition
+        const locationData = await apiRequest('/api/portfolio/composition-by-location');
+        updateLocationChart(locationData);
+
+        // Load portfolio composition with drill-down (macro)
+        const portfolioData = await apiRequest('/api/dashboard/portfolio-composition-drill');
+        updatePortfolioChart(portfolioData);
+
+        // Load portfolio composition with drill-down (L1)
+        const portfolioDataL1 = await apiRequest('/api/dashboard/portfolio-composition-drill-l1');
+        updatePortfolioChartL1(portfolioDataL1);
+
+        // Load investment averages
+        const investmentAverages = await apiRequest('/api/dashboard/yearly-investment-average');
+        updateInvestmentAveragesTable(investmentAverages);
+
+        // Load dividends yearly summary
+        const dividendsYearly = await apiRequest('/api/dashboard/dividends-yearly-summary');
+        updateDividendsYearlyTable(dividendsYearly);
+
+        // Load recent transactions
+        const recentTransactions = await apiRequest('/api/dashboard/recent-transactions');
+        updateRecentActivity(recentTransactions);
+
+        // Load mini evolution chart
+        const evolutionData = await apiRequest('/api/portfolio/evolution');
+        updateMiniEvolutionChart(evolutionData);
+
+        showToast('Dashboard atualizado com sucesso!', 'success');
+    } catch (error) {
+        showToast('Erro ao carregar dados do dashboard', 'error');
+        console.error('Error loading dashboard:', error);
+    }
+}
+
+function updateSummaryCards(data) {
+    document.getElementById('totalPatrimony').textContent = formatCurrency(data.total_patrimony);
+    
+    const performanceElement = document.getElementById('performancePerc');
+    performanceElement.textContent = formatPercentage(data.performance_perc);
+    performanceElement.className = `text-2xl font-semibold ${data.performance_perc >= 0 ? 'performance-positive' : 'performance-negative'}`;
+}
+
+function updateMonthlyInvestment(data) {
+    document.getElementById('monthlyInvestment').textContent = formatCurrency(data.monthly_investment);
+}
+
+function updateDividendsCards(data) {
+    document.getElementById('dividendsYearPaid').textContent = formatCurrency(data.current_year.paid);
+    document.getElementById('dividendsYearPending').textContent = formatCurrency(data.current_year.pending);
+    document.getElementById('dividendsMonthPaid').textContent = formatCurrency(data.current_month.paid);
+    document.getElementById('dividendsMonthPending').textContent = formatCurrency(data.current_month.pending);
+}
+
+function updateLocationChart(data) {
+    const ctx = document.getElementById('locationChart').getContext('2d');
+    
+    if (locationChart) {
+        locationChart.destroy();
+    }
+    
+    locationChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Brasil', 'Exterior'],
+            datasets: [{
+                data: [data.brazil, data.external],
+                backgroundColor: ['#3B82F6', '#10B981'],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        usePointStyle: true,
+                        padding: 15
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const value = context.parsed;
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((value / total) * 100).toFixed(1);
+                            return `${context.label}: ${formatCurrency(value)} (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+async function updateLocationChartWithFilter(marketFilter = 'all') {
+    try {
+        const locationData = await apiRequest(`/api/portfolio/composition-by-location?market=${marketFilter}`);
+        updateLocationChart(locationData);
+    } catch (error) {
+        showToast('Erro ao carregar dados de localização', 'error');
+        console.error('Error updating location chart:', error);
+    }
+}
+
+function updatePortfolioChart(data) {
+    const ctx = document.getElementById('portfolioChart').getContext('2d');
+    
+    if (portfolioChart) {
+        portfolioChart.destroy();
+    }
+
+    // Update filter dropdown
+    const filterSelect = document.getElementById('portfolioFilter');
+    filterSelect.innerHTML = '<option value="all">Visão Geral</option>';
+    data.categories.forEach(category => {
+        const option = document.createElement('option');
+        option.value = category;
+        option.textContent = category;
+        filterSelect.appendChild(option);
+    });
+
+    // Set current filter
+    filterSelect.value = data.current_filter;
+
+    const labels = data.composition.map(item => item.name);
+    const values = data.composition.map(item => item.value);
+    const colors = [
+        '#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6',
+        '#EC4899', '#F97316', '#06B6D4', '#84CC16', '#6366F1',
+        '#F43F5E', '#D946EF', '#0EA5E9', '#22C55E', '#A855F7'
+    ];
+    
+    portfolioChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: values,
+                backgroundColor: colors.slice(0, labels.length),
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        usePointStyle: true,
+                        padding: 10,
+                        font: {
+                            size: 10
+                        }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const value = context.parsed;
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((value / total) * 100).toFixed(1);
+                            return `${context.label}: ${formatCurrency(value)} (${percentage}%)`;
+                        }
+                    }
+                }
+            },
+            onClick: (event, elements) => {
+                if (elements.length > 0 && data.current_filter === 'all') {
+                    const index = elements[0].index;
+                    const categoryName = labels[index];
+                    drillDownPortfolio(categoryName);
+                }
+            }
+        }
+    });
+}
+
+function updatePortfolioChartL1(data) {
+    const ctx = document.getElementById('portfolioChartL1').getContext('2d');
+    
+    if (portfolioChartL1) {
+        portfolioChartL1.destroy();
+    }
+
+    // Update filter dropdown
+    const filterSelect = document.getElementById('portfolioFilterL1');
+    filterSelect.innerHTML = '<option value="all">Visão Geral</option>';
+    data.categories.forEach(category => {
+        const option = document.createElement('option');
+        option.value = category;
+        option.textContent = category;
+        filterSelect.appendChild(option);
+    });
+
+    // Set current filter
+    filterSelect.value = data.current_filter;
+
+    const labels = data.composition.map(item => item.name);
+    const values = data.composition.map(item => item.value);
+    const colors = [
+        '#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6',
+        '#EC4899', '#F97316', '#06B6D4', '#84CC16', '#6366F1',
+        '#F43F5E', '#D946EF', '#0EA5E9', '#22C55E', '#A855F7'
+    ];
+    
+    portfolioChartL1 = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: values,
+                backgroundColor: colors.slice(0, labels.length),
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        usePointStyle: true,
+                        padding: 10,
+                        font: {
+                            size: 10
+                        }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const value = context.parsed;
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((value / total) * 100).toFixed(1);
+                            return `${context.label}: ${formatCurrency(value)} (${percentage}%)`;
+                        }
+                    }
+                }
+            },
+            onClick: (event, elements) => {
+                if (elements.length > 0 && data.current_filter === 'all') {
+                    const index = elements[0].index;
+                    const category = labels[index];
+                    filterPortfolioL1(category);
+                }
+            }
+        }
+    });
+}
+
+// Filter functions for L1 chart
+async function filterPortfolioL1(category) {
+    try {
+        const data = await apiRequest(`/api/dashboard/portfolio-composition-drill-l1?filter=${encodeURIComponent(category)}`);
+        updatePortfolioChartL1(data);
+    } catch (error) {
+        showToast('Erro ao filtrar composição por categoria', 'error');
+        console.error('Error filtering portfolio L1:', error);
+    }
+}
+
+async function resetPortfolioFilterL1() {
+    try {
+        const data = await apiRequest('/api/dashboard/portfolio-composition-drill-l1');
+        updatePortfolioChartL1(data);
+    } catch (error) {
+        showToast('Erro ao resetar filtro de categoria', 'error');
+        console.error('Error resetting portfolio filter L1:', error);
+    }
+}
+
+function updateMiniEvolutionChart(data) {
+    const ctx = document.getElementById('miniEvolutionChart').getContext('2d');
+    
+    if (miniEvolutionChart) {
+        miniEvolutionChart.destroy();
+    }
+
+    // Get last 3 months of data
+    const last3Months = data.slice(-3);
+    const labels = last3Months.map(item => new Date(item.reference_date).toLocaleDateString('pt-BR', { month: 'short' }));
+    const values = last3Months.map(item => item.total_value);
+
+    miniEvolutionChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: values,
+                borderColor: '#3B82F6',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                fill: true,
+                tension: 0.4,
+                pointRadius: 0,
+                pointHoverRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    display: false
+                },
+                y: {
+                    display: false
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return formatCurrency(context.parsed.y);
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function updateInvestmentAveragesTable(data) {
+    const tableBody = document.getElementById('investmentAveragesTable');
+    tableBody.innerHTML = '';
+
+    data.forEach(item => {
+        const row = document.createElement('tr');
+        row.className = 'border-b border-gray-100';
+        row.innerHTML = `
+            <td class="py-2 font-medium text-gray-900">${item.year}</td>
+            <td class="py-2 text-right text-gray-700">${formatCurrency(item.average)}</td>
+            <td class="py-2 text-right text-gray-700">${formatCurrency(item.total)}</td>
+        `;
+        tableBody.appendChild(row);
+    });
+}
+
+function updateDividendsYearlyTable(data) {
+    const tableBody = document.getElementById('dividendsYearlyTable');
+    tableBody.innerHTML = '';
+
+    data.forEach(item => {
+        const row = document.createElement('tr');
+        row.className = 'border-b border-gray-100';
+        row.innerHTML = `
+            <td class="py-2 font-medium text-gray-900">${item.year}</td>
+            <td class="py-2 text-right text-gray-700">${formatCurrency(item.total)}</td>
+        `;
+        tableBody.appendChild(row);
+    });
+}
+
+function updateRecentActivity(data) {
+    const activityContainer = document.getElementById('recentActivity');
+    activityContainer.innerHTML = '';
+
+    if (data.length === 0) {
+        activityContainer.innerHTML = '<p class="text-gray-500 text-center py-4">Nenhuma atividade recente encontrada.</p>';
+        return;
+    }
+
+    data.forEach(transaction => {
+        const activityItem = document.createElement('div');
+        activityItem.className = 'flex items-center justify-between p-4 bg-gray-50 rounded-lg';
+        activityItem.innerHTML = `
+            <div class="flex items-center">
+                <div class="p-2 rounded-full bg-green-100 text-green-600">
+                    <i class="fas fa-plus text-sm"></i>
+                </div>
+                <div class="ml-3">
+                    <p class="font-medium text-gray-900">${transaction.ticker}</p>
+                    <p class="text-sm text-gray-500">${new Date(transaction.transaction_date).toLocaleDateString('pt-BR')}</p>
+                </div>
+            </div>
+            <div class="text-right">
+                <p class="font-medium text-gray-900">${transaction.quantity} cotas</p>
+                <p class="text-sm text-gray-500">${formatCurrency(transaction.total_value)}</p>
+            </div>
+        `;
+        activityContainer.appendChild(activityItem);
+    });
+}
+
+async function drillDownPortfolio(categoryName) {
+    try {
+        const portfolioData = await apiRequest(`/api/dashboard/portfolio-composition-drill?filter=${encodeURIComponent(categoryName)}`);
+        updatePortfolioChart(portfolioData);
+    } catch (error) {
+        showToast('Erro ao carregar detalhes da categoria', 'error');
+        console.error('Error drilling down portfolio:', error);
+    }
+}
+
+function resetPortfolioFilter() {
+    document.getElementById('portfolioFilter').value = 'all';
+    drillDownPortfolio('all');
+}
+
+// Handle filter change
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('portfolioFilter').addEventListener('change', function() {
+        const selectedFilter = this.value;
+        drillDownPortfolio(selectedFilter);
+    });
+    
+    document.getElementById('marketFilter').addEventListener('change', function() {
+        const selectedMarket = this.value;
+        updateLocationChartWithFilter(selectedMarket);
+    });
+    
+    // Add event listener for L1 filter
+    document.getElementById('portfolioFilterL1').addEventListener('change', async function() {
+        const selectedFilter = this.value;
+        try {
+            const data = await apiRequest(`/api/dashboard/portfolio-composition-drill-l1?filter=${encodeURIComponent(selectedFilter)}`);
+            updatePortfolioChartL1(data);
+        } catch (error) {
+            showToast('Erro ao aplicar filtro de categoria', 'error');
+            console.error('Error applying portfolio filter L1:', error);
+        }
+    });
+});
+
+async function updateData() {
+    try {
+        // Mostrar toast inicial
+        showToast('Iniciando atualização dos dados...', 'info');
+        
+        // Desabilitar o botão durante a atualização
+        const updateButton = document.querySelector('button[onclick="updateData()"]');
+        const originalText = updateButton.innerHTML;
+        updateButton.disabled = true;
+        updateButton.classList.add('btn-updating');
+        updateButton.innerHTML = '<i class="fas fa-sync-alt fa-spin mr-2"></i>Atualizando...';
+        
+        // Primeira etapa: Chamar a função do Supabase para atualizar os dados
+        showToast('Sincronizando dados com fontes externas...', 'info');
+        
+        const supabaseResponse = await fetch('https://ogxgeavweqnwzebvgsyn.supabase.co/functions/v1/hyper-handler', {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9neGdlYXZ3ZXFud3plYnZnc3luIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE1ODE1MTgsImV4cCI6MjA2NzE1NzUxOH0.hVrCDLrYJCIP9QA0FFd27OtGVPGNhQhHmOiqnvjL8YY',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({"name": "Functions"})
+        });
+        
+        if (!supabaseResponse.ok) {
+            throw new Error(`Erro na sincronização: ${supabaseResponse.status} ${supabaseResponse.statusText}`);
+        }
+        
+        const supabaseResult = await supabaseResponse.json();
+        console.log('Resposta da função Supabase:', supabaseResult);
+        
+        // Aguardar um pouco para garantir que os dados foram processados
+        showToast('Aguardando processamento dos dados...', 'info');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Segunda etapa: Atualizar o dashboard com os novos dados
+        showToast('Carregando dados atualizados...', 'info');
+        await loadDashboardData();
+        
+        // Restaurar o botão
+        updateButton.disabled = false;
+        updateButton.classList.remove('btn-updating');
+        updateButton.innerHTML = originalText;
+        
+        showToast('✅ Dados atualizados com sucesso!', 'success');
+        
+    } catch (error) {
+        console.error('Erro na atualização dos dados:', error);
+        
+        // Restaurar o botão em caso de erro
+        const updateButton = document.querySelector('button[onclick="updateData()"]');
+        updateButton.disabled = false;
+        updateButton.classList.remove('btn-updating');
+        updateButton.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>Atualizar Dados';
+        
+        // Mostrar mensagem de erro específica
+        if (error.message.includes('sincronização')) {
+            showToast('⚠️ Erro na sincronização dos dados. Tentando carregar dados locais...', 'warning');
+            // Tentar carregar dados locais mesmo com erro na sincronização
+            try {
+                await loadDashboardData();
+                showToast('✅ Dados locais carregados com sucesso!', 'success');
+            } catch (localError) {
+                showToast('❌ Erro ao carregar dados. Tente novamente mais tarde.', 'error');
+            }
+        } else {
+            showToast('❌ Erro ao atualizar dados. Tente novamente mais tarde.', 'error');
+        }
+    }
+}
+</script>
+{% endblock %}

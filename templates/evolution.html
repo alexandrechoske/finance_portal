@@ -1,0 +1,385 @@
+{% extends "base.html" %}
+
+{% block title %}Evolução do Patrimônio - Meu Patrimônio{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <h1 class="text-3xl font-bold text-gray-900">Evolução do Patrimônio</h1>
+</div>
+
+<!-- Evolution Chart -->
+<div class="bg-white rounded-lg shadow-lg p-6 mb-6 card-shadow">
+    <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-semibold text-gray-900">Histórico de Crescimento</h2>
+        <div class="flex space-x-2">
+            <button onclick="setTimeRange('3m')" class="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors">3M</button>
+            <button onclick="setTimeRange('6m')" class="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors">6M</button>
+            <button onclick="setTimeRange('1y')" class="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors">1A</button>
+            <button onclick="setTimeRange('all')" class="px-3 py-1 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">Tudo</button>
+        </div>
+    </div>
+    <div class="relative h-96">
+        <canvas id="evolutionChart"></canvas>
+    </div>
+</div>
+
+<!-- Benchmarks Comparison -->
+<div class="bg-white rounded-lg shadow-lg p-6 mb-6 card-shadow">
+    <h2 class="text-xl font-semibold text-gray-900 mb-4">Comparação com Benchmarks</h2>
+    <div class="relative h-80">
+        <canvas id="benchmarkChart"></canvas>
+    </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6">
+    <!-- Total Return Card -->
+    <div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-green-100 text-green-600">
+                <i class="fas fa-trending-up text-xl"></i>
+            </div>
+            <div class="ml-4">
+                <p class="text-gray-600 text-sm">Retorno Total</p>
+                <p id="totalReturn" class="text-2xl font-semibold text-gray-900">0,00%</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Annual Return Card -->
+    <div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-blue-100 text-blue-600">
+                <i class="fas fa-calendar-alt text-xl"></i>
+            </div>
+            <div class="ml-4">
+                <p class="text-gray-600 text-sm">Retorno Anual</p>
+                <p id="annualReturn" class="text-2xl font-semibold text-gray-900">0,00%</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Best Month Card -->
+    <div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-emerald-100 text-emerald-600">
+                <i class="fas fa-arrow-up text-xl"></i>
+            </div>
+            <div class="ml-4">
+                <p class="text-gray-600 text-sm">Melhor Mês</p>
+                <p id="bestMonth" class="text-2xl font-semibold text-gray-900">0,00%</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Worst Month Card -->
+    <div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-red-100 text-red-600">
+                <i class="fas fa-arrow-down text-xl"></i>
+            </div>
+            <div class="ml-4">
+                <p class="text-gray-600 text-sm">Pior Mês</p>
+                <p id="worstMonth" class="text-2xl font-semibold text-gray-900">0,00%</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Evolution Table -->
+<div class="bg-white rounded-lg shadow-lg overflow-hidden card-shadow">
+    <div class="px-4 sm:px-6 py-4 border-b border-gray-200">
+        <h2 class="text-xl font-semibold text-gray-900">Histórico Detalhado</h2>
+    </div>
+    <div class="responsive-table">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Patrimônio</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Proventos</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">CDI (%)</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">IBOV (%)</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">IFIX (%)</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">IPCA (%)</th>
+                    </tr>
+                </thead>
+                <tbody id="evolutionTableBody" class="bg-white divide-y divide-gray-200">
+                    <!-- Evolution data will be populated here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let evolutionChart, benchmarkChart;
+let evolutionData = [];
+let currentTimeRange = 'all';
+
+// Initialize evolution page
+document.addEventListener('DOMContentLoaded', function() {
+    loadEvolutionData();
+});
+
+async function loadEvolutionData() {
+    try {
+        const data = await apiRequest('/api/portfolio/evolution');
+        evolutionData = data;
+        
+        updateEvolutionChart();
+        updateBenchmarkChart();
+        updateStatistics();
+        renderEvolutionTable();
+        
+        showToast('Dados de evolução carregados com sucesso!', 'success');
+    } catch (error) {
+        showToast('Erro ao carregar dados de evolução', 'error');
+        console.error('Error loading evolution data:', error);
+    }
+}
+
+function updateEvolutionChart() {
+    const ctx = document.getElementById('evolutionChart').getContext('2d');
+    
+    if (evolutionChart) {
+        evolutionChart.destroy();
+    }
+    
+    const filteredData = filterDataByTimeRange(evolutionData);
+    const labels = filteredData.map(item => formatDate(item.reference_date));
+    const values = filteredData.map(item => item.total_patrimony);
+    
+    evolutionChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Patrimônio Total',
+                data: values,
+                borderColor: '#3B82F6',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                fill: true,
+                tension: 0.4,
+                pointRadius: 3,
+                pointHoverRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `Patrimônio: ${formatCurrency(context.parsed.y)}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: false,
+                    ticks: {
+                        callback: function(value) {
+                            return formatCurrency(value);
+                        }
+                    }
+                },
+                x: {
+                    ticks: {
+                        maxTicksLimit: 10
+                    }
+                }
+            }
+        }
+    });
+}
+
+function updateBenchmarkChart() {
+    const ctx = document.getElementById('benchmarkChart').getContext('2d');
+    
+    if (benchmarkChart) {
+        benchmarkChart.destroy();
+    }
+    
+    const filteredData = filterDataByTimeRange(evolutionData);
+    const labels = filteredData.map(item => formatDate(item.reference_date));
+    
+    benchmarkChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'CDI',
+                    data: filteredData.map(item => item.cdi_acum_perc),
+                    borderColor: '#10B981',
+                    backgroundColor: 'transparent',
+                    tension: 0.4,
+                    pointRadius: 2
+                },
+                {
+                    label: 'IBOV',
+                    data: filteredData.map(item => item.ibov_acum_perc),
+                    borderColor: '#F59E0B',
+                    backgroundColor: 'transparent',
+                    tension: 0.4,
+                    pointRadius: 2
+                },
+                {
+                    label: 'IFIX',
+                    data: filteredData.map(item => item.ifix_acum_perc),
+                    borderColor: '#8B5CF6',
+                    backgroundColor: 'transparent',
+                    tension: 0.4,
+                    pointRadius: 2
+                },
+                {
+                    label: 'IPCA',
+                    data: filteredData.map(item => item.ipca_acum_perc),
+                    borderColor: '#EF4444',
+                    backgroundColor: 'transparent',
+                    tension: 0.4,
+                    pointRadius: 2
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: {
+                        usePointStyle: true,
+                        padding: 20
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `${context.dataset.label}: ${formatPercentage(context.parsed.y)}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    ticks: {
+                        callback: function(value) {
+                            return formatPercentage(value);
+                        }
+                    }
+                },
+                x: {
+                    ticks: {
+                        maxTicksLimit: 10
+                    }
+                }
+            }
+        }
+    });
+}
+
+function updateStatistics() {
+    if (evolutionData.length === 0) return;
+    
+    const firstValue = evolutionData[0].total_patrimony;
+    const lastValue = evolutionData[evolutionData.length - 1].total_patrimony;
+    const totalReturn = ((lastValue - firstValue) / firstValue) * 100;
+    
+    // Calculate annual return (approximate)
+    const daysDiff = Math.floor((new Date(evolutionData[evolutionData.length - 1].reference_date) - new Date(evolutionData[0].reference_date)) / (1000 * 60 * 60 * 24));
+    const annualReturn = Math.pow(lastValue / firstValue, 365 / daysDiff) - 1;
+    
+    // Calculate monthly performance
+    const monthlyReturns = [];
+    for (let i = 1; i < evolutionData.length; i++) {
+        const prevValue = evolutionData[i - 1].total_patrimony;
+        const currentValue = evolutionData[i].total_patrimony;
+        const monthlyReturn = ((currentValue - prevValue) / prevValue) * 100;
+        monthlyReturns.push(monthlyReturn);
+    }
+    
+    const bestMonth = monthlyReturns.length > 0 ? Math.max(...monthlyReturns) : 0;
+    const worstMonth = monthlyReturns.length > 0 ? Math.min(...monthlyReturns) : 0;
+    
+    document.getElementById('totalReturn').textContent = formatPercentage(totalReturn);
+    document.getElementById('annualReturn').textContent = formatPercentage(annualReturn * 100);
+    document.getElementById('bestMonth').textContent = formatPercentage(bestMonth);
+    document.getElementById('worstMonth').textContent = formatPercentage(worstMonth);
+}
+
+function renderEvolutionTable() {
+    const tbody = document.getElementById('evolutionTableBody');
+    tbody.innerHTML = '';
+    
+    evolutionData.slice(-12).reverse().forEach(item => {
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-gray-50';
+        
+        row.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${formatDate(item.reference_date)}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900">${formatCurrency(item.total_patrimony)}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900">${formatCurrency(item.total_dividends)}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900">${formatPercentage(item.cdi_acum_perc)}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900">${formatPercentage(item.ibov_acum_perc)}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900">${formatPercentage(item.ifix_acum_perc)}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900">${formatPercentage(item.ipca_acum_perc)}</td>
+        `;
+        
+        tbody.appendChild(row);
+    });
+}
+
+function filterDataByTimeRange(data) {
+    if (currentTimeRange === 'all') return data;
+    
+    const now = new Date();
+    const cutoffDate = new Date();
+    
+    switch (currentTimeRange) {
+        case '3m':
+            cutoffDate.setMonth(now.getMonth() - 3);
+            break;
+        case '6m':
+            cutoffDate.setMonth(now.getMonth() - 6);
+            break;
+        case '1y':
+            cutoffDate.setFullYear(now.getFullYear() - 1);
+            break;
+    }
+    
+    return data.filter(item => new Date(item.reference_date) >= cutoffDate);
+}
+
+function setTimeRange(range) {
+    currentTimeRange = range;
+    
+    // Update button states
+    document.querySelectorAll('button[onclick^="setTimeRange"]').forEach(btn => {
+        btn.className = 'px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors';
+    });
+    event.target.className = 'px-3 py-1 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors';
+    
+    updateEvolutionChart();
+    updateBenchmarkChart();
+}
+
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('pt-BR', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+    });
+}
+</script>
+{% endblock %}

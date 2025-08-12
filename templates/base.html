@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Meu Patrimônio{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card-shadow {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .performance-positive {
+            color: #10B981;
+        }
+        .performance-negative {
+            color: #EF4444;
+        }
+        .btn-updating {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+        .btn-updating:hover {
+            background-color: #3B82F6 !important;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        /* Responsividade para tabelas */
+        .responsive-table {
+            width: 100%;
+            overflow-x: auto;
+            display: block;
+        }
+        /* Ajuste para navegação mobile */
+        @media (max-width: 640px) {
+            nav .desktop-menu { display: none !important; }
+            nav .mobile-menu { display: flex !important; }
+        }
+        @media (min-width: 641px) {
+            nav .desktop-menu { display: flex !important; }
+            nav .mobile-menu { display: none !important; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <!-- Navigation -->
+    <nav class="gradient-bg text-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <!-- Logo ou título -->
+                <div class="flex items-center">
+                    <i class="fas fa-chart-line text-2xl mr-3"></i>
+                    <h1 class="text-xl font-bold">Meu Patrimônio</h1>
+                </div>
+                <!-- Menu Desktop -->
+                <div class="desktop-menu flex items-center space-x-4">
+                    <a href="/" class="hover:text-gray-300 transition-colors {% if request.endpoint == 'pages.dashboard' %}text-yellow-300{% endif %}"><i class="fas fa-home mr-1"></i> Dashboard</a>
+                    <a href="/portfolio" class="hover:text-gray-300 transition-colors {% if request.endpoint == 'pages.portfolio' %}text-yellow-300{% endif %}"><i class="fas fa-briefcase mr-1"></i> Carteira</a>
+                    <a href="/evolution" class="hover:text-gray-300 transition-colors {% if request.endpoint == 'pages.evolution' %}text-yellow-300{% endif %}"><i class="fas fa-chart-area mr-1"></i> Evolução</a>
+                    <a href="/rentabilidade" class="hover:text-gray-300 transition-colors {% if request.endpoint == 'pages.rentabilidade' %}text-yellow-300{% endif %}"><i class="fas fa-percentage mr-1"></i> Rentabilidade</a>
+                    <a href="/dividends" class="hover:text-gray-300 transition-colors {% if request.endpoint == 'pages.dividends' %}text-yellow-300{% endif %}"><i class="fas fa-coins mr-1"></i> Proventos</a>
+                    <a href="/contributions" class="hover:text-gray-300 transition-colors {% if request.endpoint == 'pages.contributions' %}text-yellow-300{% endif %}"><i class="fas fa-plus-circle mr-1"></i> Aportes</a>
+                    <a href="/categories" class="hover:text-gray-300 transition-colors {% if request.endpoint == 'pages.categories' %}text-yellow-300{% endif %}"><i class="fas fa-tags mr-1"></i> Categorias</a>
+                    <a href="/data-update" class="hover:text-gray-300 transition-colors {% if request.endpoint == 'pages.data_update' %}text-yellow-300{% endif %}"><i class="fas fa-sync-alt mr-1"></i> Atualizar</a>
+                </div>
+                <!-- Menu Mobile (Hamburguer) -->
+                <div class="mobile-menu flex items-center" style="display:none;">
+                    <button id="mobileMenuBtn" class="focus:outline-none">
+                        <i class="fas fa-bars text-2xl"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <!-- Dropdown mobile -->
+        <div id="mobileMenuDropdown" class="fixed top-0 left-0 w-full h-full bg-black bg-opacity-60 z-50 hidden">
+            <div class="bg-white text-gray-900 w-4/5 max-w-xs h-full p-6 flex flex-col gap-4 shadow-lg">
+                <button id="closeMobileMenu" class="self-end mb-4"><i class="fas fa-times text-2xl"></i></button>
+                <a href="/" class="py-2 border-b border-gray-200">Dashboard</a>
+                <a href="/portfolio" class="py-2 border-b border-gray-200">Carteira</a>
+                <a href="/evolution" class="py-2 border-b border-gray-200">Evolução</a>
+                <a href="/rentabilidade" class="py-2 border-b border-gray-200">Rentabilidade</a>
+                <a href="/dividends" class="py-2 border-b border-gray-200">Proventos</a>
+                <a href="/contributions" class="py-2 border-b border-gray-200">Aportes</a>
+                <a href="/categories" class="py-2 border-b border-gray-200">Categorias</a>
+                <a href="/data-update" class="py-2">Atualizar</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        <div class="px-2 sm:px-4 py-6 sm:px-0">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white p-6 rounded-lg shadow-lg">
+            <div class="flex items-center">
+                <i class="fas fa-spinner fa-spin text-2xl text-blue-500 mr-3"></i>
+                <span class="text-lg">Carregando...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toastContainer" class="fixed top-4 right-4 z-50"></div>
+
+    <script>
+        // Mobile menu toggle
+        document.addEventListener('DOMContentLoaded', function() {
+            const btn = document.getElementById('mobileMenuBtn');
+            const dropdown = document.getElementById('mobileMenuDropdown');
+            const closeBtn = document.getElementById('closeMobileMenu');
+            if (btn && dropdown && closeBtn) {
+                btn.addEventListener('click', function() {
+                    dropdown.classList.remove('hidden');
+                });
+                closeBtn.addEventListener('click', function() {
+                    dropdown.classList.add('hidden');
+                });
+                dropdown.addEventListener('click', function(e) {
+                    if (e.target === dropdown) dropdown.classList.add('hidden');
+                });
+            }
+        });
+        // Utility functions
+        function showLoading() {
+            document.getElementById('loadingOverlay').classList.remove('hidden');
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.add('hidden');
+        }
+
+        function showToast(message, type = 'info') {
+            const toastContainer = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            
+            const bgColor = type === 'success' ? 'bg-green-500' : 
+                           type === 'error' ? 'bg-red-500' : 
+                           type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500';
+            
+            toast.className = `${bgColor} text-white px-6 py-3 rounded-lg shadow-lg mb-2 transform transition-all duration-300 translate-x-full`;
+            toast.innerHTML = `
+                <div class="flex items-center justify-between">
+                    <span>${message}</span>
+                    <button onclick="this.parentElement.parentElement.remove()" class="ml-4 hover:text-gray-200">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `;
+            
+            toastContainer.appendChild(toast);
+            
+            // Animate in
+            setTimeout(() => {
+                toast.classList.remove('translate-x-full');
+            }, 10);
+            
+            // Auto remove after 5 seconds
+            setTimeout(() => {
+                toast.classList.add('translate-x-full');
+                setTimeout(() => {
+                    if (toast.parentElement) {
+                        toast.parentElement.removeChild(toast);
+                    }
+                }, 300);
+            }, 5000);
+        }
+
+        // Format currency
+        function formatCurrency(value) {
+            return new Intl.NumberFormat('pt-BR', {
+                style: 'currency',
+                currency: 'BRL'
+            }).format(value);
+        }
+
+        // Format percentage
+        function formatPercentage(value) {
+            return new Intl.NumberFormat('pt-BR', {
+                style: 'percent',
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).format(value / 100);
+        }
+
+        // API request helper
+        async function apiRequest(url, options = {}) {
+            showLoading();
+            try {
+                const response = await fetch(url, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    },
+                    ...options
+                });
+
+                if (!response.ok) {
+                    // Tenta ler o corpo da resposta para debug
+                    let errorText = '';
+                    try {
+                        errorText = await response.text();
+                    } catch {}
+                    console.error('API ERROR', url, response.status, errorText);
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                // Loga no console para debug
+                console.info('API RESPONSE', url, data);
+                hideLoading();
+                return data;
+            } catch (error) {
+                hideLoading();
+                showToast(`Erro na requisição: ${error.message}`, 'error');
+                // Loga erro completo
+                console.error('API REQUEST ERROR', url, error);
+                throw error;
+            }
+        }
+
+        // Initialize tooltips and other interactive elements
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add any global initialization here
+        });
+    </script>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

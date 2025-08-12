@@ -1,0 +1,766 @@
+{% extends "base.html" %}
+
+{% block title %}Análise de Proventos - Meu Patrimônio{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <h1 class="text-3xl font-bold text-gray-900">Análise de Proventos</h1>
+</div>
+
+<!-- Summary Cards -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <!-- Monthly Average (Last 12 months) -->
+    <div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-purple-100 text-purple-600">
+                <i class="fas fa-chart-line text-xl"></i>
+            </div>
+            <div class="ml-4">
+                <p class="text-gray-600 text-sm">Média Mensal (12m)</p>
+                <p id="monthlyAverage12m" class="text-2xl font-semibold text-gray-900">R$ 0,00</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Total Last 12 Months -->
+    <div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-blue-100 text-blue-600">
+                <i class="fas fa-calendar-alt text-xl"></i>
+            </div>
+            <div class="ml-4">
+                <p class="text-gray-600 text-sm">Total (Últ. 12m)</p>
+                <p id="totalLast12m" class="text-2xl font-semibold text-gray-900">R$ 0,00</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Current Month Total -->
+    <div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-green-100 text-green-600">
+                <i class="fas fa-calendar-check text-xl"></i>
+            </div>
+            <div class="ml-4">
+                <p class="text-gray-600 text-sm">Mês Atual</p>
+                <p id="currentMonthTotal" class="text-2xl font-semibold text-gray-900">R$ 0,00</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Next Month Total -->
+    <div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-yellow-100 text-yellow-600">
+                <i class="fas fa-clock text-xl"></i>
+            </div>
+            <div class="ml-4">
+                <p class="text-gray-600 text-sm">Próximo Mês</p>
+                <p id="nextMonthTotal" class="text-2xl font-semibold text-gray-900">R$ 0,00</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Content Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+    <!-- Monthly Dividends Chart -->
+    <div class="lg:col-span-2 bg-white rounded-lg shadow-lg p-6 card-shadow">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-semibold text-gray-900">Proventos Mensais</h2>
+            <div class="flex space-x-2">
+                <select id="monthFilter" class="px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    <option value="">Todos os meses</option>
+                </select>
+                <select id="yearFilter" class="px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    <option value="">Todos os anos</option>
+                </select>
+                <button onclick="toggleChartType()" class="px-3 py-1 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors">
+                    <i class="fas fa-chart-bar mr-1"></i>
+                    Alternar Gráfico
+                </button>
+            </div>
+        </div>
+        <div class="relative h-80">
+            <canvas id="monthlyDividendsChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Annual Summary Table -->
+    <div class="bg-white rounded-lg shadow-lg overflow-hidden card-shadow">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-xl font-semibold text-gray-900">Resumo Anual</h2>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ano</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Crescimento</th>
+                    </tr>
+                </thead>
+                <tbody id="annualSummaryBody" class="bg-white divide-y divide-gray-200">
+                    <!-- Annual summary will be populated here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Additional Charts -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    <!-- Dividends by Category Chart -->
+    <div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-semibold text-gray-900">Proventos por Categoria</h2>
+            <button onclick="drillDownCategory()" class="px-3 py-1 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+                <i class="fas fa-search-plus mr-1"></i>
+                Drill Down
+            </button>
+        </div>
+        <div class="relative h-80">
+            <canvas id="categoryChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Dividends by Asset Chart -->
+    <div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-semibold text-gray-900">Proventos por Ativo</h2>
+            <div class="flex space-x-2">
+                <select id="categoryFilter" class="px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    <option value="">Todas as categorias</option>
+                </select>
+                <button onclick="resetAssetFilter()" class="px-3 py-1 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors">
+                    <i class="fas fa-undo mr-1"></i>
+                    Reset
+                </button>
+            </div>
+        </div>
+        <div class="relative h-80">
+            <canvas id="assetChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Detailed Dividends Table -->
+<div class="bg-white rounded-lg shadow-lg overflow-hidden card-shadow">
+    <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+        <h2 class="text-xl font-semibold text-gray-900">Histórico Detalhado</h2>
+        <div class="flex space-x-2">
+            <select id="monthFilterTable" class="px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                <option value="">Todos os meses</option>
+            </select>
+            <select id="statusFilter" class="px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                <option value="">Todos</option>
+                <option value="Pago">Pagos</option>
+                <option value="A Pagar">A Pagar</option>
+            </select>
+            <input type="text" id="tickerFilter" placeholder="Filtrar por ticker..." class="px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+        </div>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ticker</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data Pagamento</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data Com</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Valor Líquido</th>
+                    <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                </tr>
+            </thead>
+            <tbody id="dividendsTableBody" class="bg-white divide-y divide-gray-200">
+                <!-- Dividends data will be populated here -->
+            </tbody>
+        </table>
+    </div>
+    <!-- Pagination -->
+    <div class="px-6 py-4 border-t border-gray-200 flex justify-between items-center">
+        <div class="text-sm text-gray-700">
+            Mostrando <span id="showingStart">1</span> a <span id="showingEnd">10</span> de <span id="totalRecords">0</span> registros
+        </div>
+        <div class="flex space-x-2">
+            <button id="prevPage" onclick="previousPage()" class="px-3 py-1 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors disabled:opacity-50" disabled>
+                <i class="fas fa-chevron-left"></i>
+            </button>
+            <span id="currentPage" class="px-3 py-1 bg-blue-500 text-white rounded-lg">1</span>
+            <button id="nextPage" onclick="nextPage()" class="px-3 py-1 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors disabled:opacity-50" disabled>
+                <i class="fas fa-chevron-right"></i>
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let monthlyDividendsChart;
+let categoryChart;
+let assetChart;
+let monthlyData = {};
+let annualData = {};
+let detailedData = [];
+let currentChartType = 'bar';
+let currentPage = 1;
+let totalPages = 1;
+let categoriesData = {};
+let assetsData = {};
+
+// Initialize dividends page
+document.addEventListener('DOMContentLoaded', function() {
+    loadDividendsData();
+    setupFilters();
+});
+
+async function loadDividendsData() {
+    try {
+        // Load all data in parallel
+        const [monthly, annual, stats, categories, assets] = await Promise.all([
+            apiRequest('/api/dividends/monthly'),
+            apiRequest('/api/dividends/annual-summary'),
+            apiRequest('/api/dividends/stats'),
+            apiRequest('/api/dividends/by-category'),
+            apiRequest('/api/dividends/by-asset')
+        ]);
+
+        monthlyData = monthly;
+        annualData = annual;
+        categoriesData = categories;
+        assetsData = assets;
+
+        // Update all components
+        updateStatsCards(stats);
+        updateMonthlyChart();
+        updateAnnualSummaryTable();
+        updateCategoryChart();
+        updateAssetChart();
+        populateFilters();
+        loadDetailedTable();
+        
+        showToast('Dados de proventos carregados com sucesso!', 'success');
+    } catch (error) {
+        showToast('Erro ao carregar dados de proventos', 'error');
+        console.error('Error loading dividends data:', error);
+    }
+}
+
+function updateStatsCards(stats) {
+    document.getElementById('monthlyAverage12m').textContent = formatCurrency(stats.monthly_average_12m);
+    document.getElementById('totalLast12m').textContent = formatCurrency(stats.total_last_12m);
+    document.getElementById('currentMonthTotal').textContent = formatCurrency(stats.total_current_month);
+    document.getElementById('nextMonthTotal').textContent = formatCurrency(stats.total_next_month);
+}
+
+function updateMonthlyChart() {
+    const ctx = document.getElementById('monthlyDividendsChart').getContext('2d');
+    
+    if (monthlyDividendsChart) {
+        monthlyDividendsChart.destroy();
+    }
+    
+    const yearFilter = document.getElementById('yearFilter').value;
+    const monthFilter = document.getElementById('monthFilter').value;
+    let filteredData = monthlyData;
+    
+    // Apply filters
+    if (yearFilter) {
+        filteredData = {};
+        Object.keys(monthlyData).forEach(key => {
+            if (key.startsWith(yearFilter)) {
+                filteredData[key] = monthlyData[key];
+            }
+        });
+    }
+    
+    if (monthFilter) {
+        filteredData = {};
+        if (monthlyData[monthFilter]) {
+            filteredData[monthFilter] = monthlyData[monthFilter];
+        }
+    }
+    
+    const labels = Object.keys(filteredData).sort();
+    const paidValues = labels.map(label => filteredData[label].Pago || 0);
+    const pendingValues = labels.map(label => filteredData[label]['A Pagar'] || 0);
+    
+    if (currentChartType === 'bar') {
+        monthlyDividendsChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels.map(label => formatMonthYear(label)),
+                datasets: [{
+                    label: 'Pagos',
+                    data: paidValues,
+                    backgroundColor: '#10B981',
+                    borderColor: '#10B981',
+                    borderWidth: 1
+                }, {
+                    label: 'A Pagar',
+                    data: pendingValues,
+                    backgroundColor: '#F59E0B',
+                    borderColor: '#F59E0B',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return `${context.dataset.label}: ${formatCurrency(context.parsed.y)}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        stacked: true
+                    },
+                    y: {
+                        stacked: true,
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return formatCurrency(value);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    } else {
+        // Line chart with different styles for paid vs pending
+        monthlyDividendsChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels.map(label => formatMonthYear(label)),
+                datasets: [{
+                    label: 'Pagos',
+                    data: paidValues,
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    borderColor: '#10B981',
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0.1
+                }, {
+                    label: 'A Pagar',
+                    data: pendingValues,
+                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                    borderColor: '#F59E0B',
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    fill: false,
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return `${context.dataset.label}: ${formatCurrency(context.parsed.y)}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return formatCurrency(value);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+}
+
+function updateAnnualSummaryTable() {
+    const tbody = document.getElementById('annualSummaryBody');
+    tbody.innerHTML = '';
+    
+    const years = Object.keys(annualData).sort().reverse();
+    
+    years.forEach((year, index) => {
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-gray-50';
+        
+        const paidAmount = annualData[year].Pago || 0;
+        const pendingAmount = annualData[year]['A Pagar'] || 0;
+        const totalAmount = paidAmount + pendingAmount;
+        
+        // Calculate growth compared to previous year
+        let growth = 0;
+        if (index < years.length - 1) {
+            const previousYear = years[index + 1];
+            const previousTotal = (annualData[previousYear]?.Pago || 0) + (annualData[previousYear]?.['A Pagar'] || 0);
+            growth = previousTotal > 0 ? ((totalAmount - previousTotal) / previousTotal) * 100 : 0;
+        }
+        
+        row.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${year}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900">
+                <div class="text-green-600">${formatCurrency(paidAmount)}</div>
+                ${pendingAmount > 0 ? `<div class="text-yellow-600 text-xs">+ ${formatCurrency(pendingAmount)}</div>` : ''}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-right text-sm ${growth >= 0 ? 'performance-positive' : 'performance-negative'}">
+                ${growth !== 0 ? formatPercentage(growth) : '-'}
+            </td>
+        `;
+        
+        tbody.appendChild(row);
+    });
+}
+
+function updateCategoryChart() {
+    const ctx = document.getElementById('categoryChart').getContext('2d');
+    
+    if (categoryChart) {
+        categoryChart.destroy();
+    }
+    
+    const categories = Object.keys(categoriesData);
+    const values = categories.map(cat => categoriesData[cat]);
+    
+    const colors = [
+        '#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6',
+        '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1'
+    ];
+    
+    categoryChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: categories,
+            datasets: [{
+                data: values,
+                backgroundColor: colors.slice(0, categories.length),
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 20,
+                        usePointStyle: true
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((context.parsed / total) * 100).toFixed(1);
+                            return `${context.label}: ${formatCurrency(context.parsed)} (${percentage}%)`;
+                        }
+                    }
+                }
+            },
+            onClick: (event, elements) => {
+                if (elements.length > 0) {
+                    const index = elements[0].index;
+                    const category = categories[index];
+                    drillDownToAssets(category);
+                }
+            }
+        }
+    });
+}
+
+function updateAssetChart() {
+    const ctx = document.getElementById('assetChart').getContext('2d');
+    
+    if (assetChart) {
+        assetChart.destroy();
+    }
+    
+    const assets = Object.keys(assetsData);
+    const values = assets.map(asset => assetsData[asset]);
+    
+    // Get top 10 assets by value
+    const sortedAssets = assets.map(asset => ({
+        name: asset,
+        value: assetsData[asset]
+    })).sort((a, b) => b.value - a.value).slice(0, 10);
+    
+    const colors = [
+        '#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6',
+        '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1'
+    ];
+    
+    assetChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: sortedAssets.map(asset => asset.name),
+            datasets: [{
+                label: 'Proventos',
+                data: sortedAssets.map(asset => asset.value),
+                backgroundColor: colors[0],
+                borderColor: colors[0],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `${context.label}: ${formatCurrency(context.parsed.y)}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return formatCurrency(value);
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function populateFilters() {
+    // Populate year filter
+    const yearFilter = document.getElementById('yearFilter');
+    const years = [...new Set(Object.keys(monthlyData).map(key => key.split('-')[0]))].sort().reverse();
+    
+    yearFilter.innerHTML = '<option value="">Todos os anos</option>';
+    years.forEach(year => {
+        const option = document.createElement('option');
+        option.value = year;
+        option.textContent = year;
+        yearFilter.appendChild(option);
+    });
+    
+    // Populate month filters
+    const monthFilter = document.getElementById('monthFilter');
+    const monthFilterTable = document.getElementById('monthFilterTable');
+    const months = Object.keys(monthlyData).sort().reverse();
+    
+    const monthOptions = '<option value="">Todos os meses</option>' + 
+        months.map(month => `<option value="${month}">${formatMonthYear(month)}</option>`).join('');
+    
+    monthFilter.innerHTML = monthOptions;
+    monthFilterTable.innerHTML = monthOptions;
+    
+    // Populate category filter
+    const categoryFilter = document.getElementById('categoryFilter');
+    const categories = Object.keys(categoriesData);
+    
+    categoryFilter.innerHTML = '<option value="">Todas as categorias</option>' +
+        categories.map(cat => `<option value="${cat}">${cat}</option>`).join('');
+}
+
+async function loadDetailedTable() {
+    try {
+        const monthFilter = document.getElementById('monthFilterTable').value;
+        const statusFilter = document.getElementById('statusFilter').value;
+        const tickerFilter = document.getElementById('tickerFilter').value;
+        
+        const params = new URLSearchParams({
+            page: currentPage,
+            per_page: 10,
+            ...(monthFilter && { month: monthFilter }),
+            ...(statusFilter && { status: statusFilter }),
+            ...(tickerFilter && { ticker: tickerFilter })
+        });
+        
+        const response = await apiRequest(`/api/dividends/detailed-paginated?${params}`);
+        
+        renderDetailedTable(response.data);
+        updatePagination(response);
+        
+    } catch (error) {
+        console.error('Error loading detailed table:', error);
+        showToast('Erro ao carregar tabela detalhada', 'error');
+    }
+}
+
+function renderDetailedTable(data) {
+    const tbody = document.getElementById('dividendsTableBody');
+    tbody.innerHTML = '';
+    
+    data.forEach(item => {
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-gray-50';
+        
+        row.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${item.ticker}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${item.type || '-'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${formatDate(item.payment_date)}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.com_date ? formatDate(item.com_date) : '-'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900">${formatCurrency(item.net_value)}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-center">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${item.status === 'Pago' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">
+                    ${item.status}
+                </span>
+            </td>
+        `;
+        
+        tbody.appendChild(row);
+    });
+}
+
+function updatePagination(response) {
+    totalPages = response.total_pages;
+    currentPage = response.page;
+    
+    document.getElementById('showingStart').textContent = ((currentPage - 1) * response.per_page + 1);
+    document.getElementById('showingEnd').textContent = Math.min(currentPage * response.per_page, response.total);
+    document.getElementById('totalRecords').textContent = response.total;
+    document.getElementById('currentPage').textContent = currentPage;
+    
+    // Update button states
+    document.getElementById('prevPage').disabled = currentPage <= 1;
+    document.getElementById('nextPage').disabled = currentPage >= totalPages;
+}
+
+function previousPage() {
+    if (currentPage > 1) {
+        currentPage--;
+        loadDetailedTable();
+    }
+}
+
+function nextPage() {
+    if (currentPage < totalPages) {
+        currentPage++;
+        loadDetailedTable();
+    }
+}
+
+async function drillDownToAssets(category) {
+    try {
+        const response = await apiRequest(`/api/dividends/by-asset?category=${category}`);
+        assetsData = response;
+        updateAssetChart();
+        
+        // Update category filter
+        const categoryFilter = document.getElementById('categoryFilter');
+        categoryFilter.value = category;
+        
+        showToast(`Drill-down para categoria: ${category}`, 'info');
+    } catch (error) {
+        console.error('Error drilling down to assets:', error);
+        showToast('Erro ao fazer drill-down', 'error');
+    }
+}
+
+function drillDownCategory() {
+    // This function can be used to implement category drill-down
+    // For now, it just shows a message
+    showToast('Clique em uma fatia do gráfico para fazer drill-down', 'info');
+}
+
+function resetAssetFilter() {
+    const categoryFilter = document.getElementById('categoryFilter');
+    categoryFilter.value = '';
+    
+    // Reload all assets data
+    apiRequest('/api/dividends/by-asset').then(response => {
+        assetsData = response;
+        updateAssetChart();
+        showToast('Filtro resetado', 'info');
+    });
+}
+
+function setupFilters() {
+    const yearFilter = document.getElementById('yearFilter');
+    const monthFilter = document.getElementById('monthFilter');
+    const monthFilterTable = document.getElementById('monthFilterTable');
+    const statusFilter = document.getElementById('statusFilter');
+    const tickerFilter = document.getElementById('tickerFilter');
+    const categoryFilter = document.getElementById('categoryFilter');
+    
+    yearFilter.addEventListener('change', updateMonthlyChart);
+    monthFilter.addEventListener('change', updateMonthlyChart);
+    
+    monthFilterTable.addEventListener('change', () => {
+        currentPage = 1;
+        loadDetailedTable();
+    });
+    
+    statusFilter.addEventListener('change', () => {
+        currentPage = 1;
+        loadDetailedTable();
+    });
+    
+    tickerFilter.addEventListener('input', debounce(() => {
+        currentPage = 1;
+        loadDetailedTable();
+    }, 300));
+    
+    categoryFilter.addEventListener('change', async () => {
+        const category = categoryFilter.value;
+        if (category) {
+            await drillDownToAssets(category);
+        } else {
+            resetAssetFilter();
+        }
+    });
+}
+
+function toggleChartType() {
+    currentChartType = currentChartType === 'bar' ? 'line' : 'bar';
+    updateMonthlyChart();
+}
+
+// Utility functions
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+function formatMonthYear(monthYear) {
+    const [year, month] = monthYear.split('-');
+    const date = new Date(year, month - 1);
+    return date.toLocaleDateString('pt-BR', {
+        year: 'numeric',
+        month: 'short'
+    });
+}
+
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('pt-BR');
+}
+</script>
+{% endblock %}

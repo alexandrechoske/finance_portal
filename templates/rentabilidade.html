@@ -1,0 +1,379 @@
+{% extends "base.html" %}
+
+{% block title %}Análise de Rentabilidade - Meu Patrimônio{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <h1 class="text-3xl font-bold text-gray-900">Análise de Rentabilidade</h1>
+    <p class="text-gray-600 mt-2">Acompanhe a performance detalhada dos seus investimentos</p>
+</div>
+
+<!-- Cards de Resumo -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
+    <!-- Resultado do Dia (R$) -->
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-blue-100 text-blue-600">
+                <i class="fas fa-calendar-day text-xl"></i>
+            </div>
+            <div class="ml-4">
+                <p class="text-gray-600 text-sm">Resultado do Dia</p>
+                <p id="dailyProfitValue" class="text-2xl font-semibold text-gray-900">R$ 0,00</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resultado do Dia (%) -->
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-indigo-100 text-indigo-600">
+                <i class="fas fa-percentage text-xl"></i>
+            </div>
+            <div class="ml-4">
+                <p class="text-gray-600 text-sm">Resultado do Dia (%)</p>
+                <p id="dailyProfitPerc" class="text-2xl font-semibold text-gray-900">0,00%</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resultado Geral (R$) -->
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-green-100 text-green-600">
+                <i class="fas fa-chart-line text-xl"></i>
+            </div>
+            <div class="ml-4">
+                <p class="text-gray-600 text-sm">Resultado Geral</p>
+                <p id="totalProfitValue" class="text-2xl font-semibold text-gray-900">R$ 0,00</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resultado Geral (%) -->
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-purple-100 text-purple-600">
+                <i class="fas fa-trophy text-xl"></i>
+            </div>
+            <div class="ml-4">
+                <p class="text-gray-600 text-sm">Resultado Geral (%)</p>
+                <p id="totalProfitPerc" class="text-2xl font-semibold text-gray-900">0,00%</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Seção de Navegação (Abas) -->
+<div class="bg-white rounded-lg shadow-md mb-4 sm:mb-6">
+    <div class="border-b border-gray-200">
+        <nav class="flex space-x-8 px-6" aria-label="Tabs">
+            <button onclick="changeTab('asset')" 
+                    class="tab-button border-b-2 border-blue-500 text-blue-600 py-4 px-1 text-sm font-medium whitespace-nowrap"
+                    data-tab="asset">
+                <i class="fas fa-chart-bar mr-2"></i>
+                Por Ativo
+            </button>
+            <button onclick="changeTab('category')" 
+                    class="tab-button border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 py-4 px-1 text-sm font-medium whitespace-nowrap"
+                    data-tab="category">
+                <i class="fas fa-layer-group mr-2"></i>
+                Por Categoria
+            </button>
+            <button onclick="changeTab('group')" 
+                    class="tab-button border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 py-4 px-1 text-sm font-medium whitespace-nowrap"
+                    data-tab="group">
+                <i class="fas fa-sitemap mr-2"></i>
+                Por Grupo
+            </button>
+            <button onclick="changeTab('sector')" 
+                    class="tab-button border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 py-4 px-1 text-sm font-medium whitespace-nowrap"
+                    data-tab="sector">
+                <i class="fas fa-industry mr-2"></i>
+                Por Setor
+            </button>
+            <button onclick="changeTab('location')" 
+                    class="tab-button border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 py-4 px-1 text-sm font-medium whitespace-nowrap"
+                    data-tab="location">
+                <i class="fas fa-globe-americas mr-2"></i>
+                Por Localização
+            </button>
+        </nav>
+    </div>
+
+    <!-- Tabela de Dados -->
+<div class="p-4 sm:p-6">
+        <!-- Loading State -->
+        <div id="loadingState" class="text-center py-8 hidden">
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <p class="text-gray-600 mt-2">Carregando dados...</p>
+        </div>
+
+        <!-- Tabela -->
+        <div id="dataTable" class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <span id="tableHeader">Ativo</span>
+                        </th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Resultado Dia (R$)
+                        </th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Resultado Dia (%)
+                        </th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Resultado Geral (R$)
+                        </th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Resultado Geral (%)
+                        </th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Resultado c/ Dividendos (R$)
+                        </th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Resultado c/ Dividendos (%)
+                        </th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Posição Atual
+                        </th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody" class="bg-white divide-y divide-gray-200">
+                    <!-- Os dados serão inseridos aqui dinamicamente -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="text-center py-8 hidden">
+            <i class="fas fa-chart-line text-4xl text-gray-400 mb-4"></i>
+            <p class="text-gray-600">Nenhum dado encontrado para esta visualização</p>
+        </div>
+    </div>
+</div>
+
+<!-- Última Atualização -->
+<div class="text-center text-sm text-gray-500 mb-2 sm:mb-4">
+    Última atualização: <span id="lastUpdate">--</span>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentTab = 'asset';
+let performanceData = null;
+
+// Mapear tipos de aba para nomes de headers
+const tabHeaders = {
+    'asset': 'Ativo',
+    'category': 'Categoria',
+    'group': 'Grupo',
+    'sector': 'Setor',
+    'location': 'Localização'
+};
+
+// Inicializar página
+document.addEventListener('DOMContentLoaded', function() {
+    loadPerformanceData('asset');
+});
+
+// Função para trocar aba
+function changeTab(tabType) {
+    // Atualizar UI das abas
+    document.querySelectorAll('.tab-button').forEach(btn => {
+        btn.classList.remove('border-blue-500', 'text-blue-600');
+        btn.classList.add('border-transparent', 'text-gray-500');
+    });
+    
+    const activeTab = document.querySelector(`[data-tab="${tabType}"]`);
+    activeTab.classList.remove('border-transparent', 'text-gray-500');
+    activeTab.classList.add('border-blue-500', 'text-blue-600');
+    
+    // Atualizar header da tabela
+    document.getElementById('tableHeader').textContent = tabHeaders[tabType];
+    
+    // Carregar dados
+    loadPerformanceData(tabType);
+    currentTab = tabType;
+}
+
+// Função para carregar dados da API
+async function loadPerformanceData(type) {
+    try {
+        showLoading(true);
+        
+        const response = await apiRequest(`/api/performance?type=${type}`);
+        performanceData = response;
+        
+        // Atualizar cards de resumo apenas se for a primeira carga ou total
+        if (type === 'asset' || response.summary) {
+            updateSummaryCards(response.summary || response.total);
+        }
+        
+        // Renderizar tabela
+        renderTable(response.data || response.items);
+        
+        // Atualizar timestamp
+        updateLastUpdate();
+        
+        showLoading(false);
+        
+    } catch (error) {
+        console.error('Erro ao carregar dados de performance:', error);
+        showError('Erro ao carregar dados de performance');
+        showLoading(false);
+    }
+}
+
+// Função para atualizar cards de resumo
+function updateSummaryCards(summaryData) {
+    if (!summaryData) return;
+    
+    // Encontrar dados totais
+    const totalData = Array.isArray(summaryData) 
+        ? summaryData.find(item => item.aggregation_type === 'total')
+        : summaryData;
+    
+    if (totalData) {
+        updateCard('dailyProfitValue', totalData.daily_profit_value, 'currency');
+        updateCard('dailyProfitPerc', totalData.daily_profit_perc, 'percentage');
+        updateCard('totalProfitValue', totalData.total_profit_value, 'currency');
+        updateCard('totalProfitPerc', totalData.total_profit_perc, 'percentage');
+    }
+}
+
+// Função para atualizar um card individual
+function updateCard(elementId, value, type) {
+    const element = document.getElementById(elementId);
+    if (!element) return;
+    
+    let formattedValue;
+    let colorClass = '';
+    
+    if (type === 'currency') {
+        formattedValue = formatCurrency(value || 0);
+        colorClass = (value || 0) >= 0 ? 'text-green-600' : 'text-red-600';
+    } else if (type === 'percentage') {
+        formattedValue = formatPercentage(value || 0);
+        colorClass = (value || 0) >= 0 ? 'text-green-600' : 'text-red-600';
+    }
+    
+    element.textContent = formattedValue;
+    element.className = element.className.replace(/text-(green|red)-600/g, '') + ' ' + colorClass;
+}
+
+// Função para renderizar tabela
+function renderTable(data) {
+    const tbody = document.getElementById('tableBody');
+    tbody.innerHTML = '';
+    
+    if (!data || data.length === 0) {
+        showEmptyState(true);
+        return;
+    }
+    
+    showEmptyState(false);
+    
+    data.forEach(item => {
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-gray-50';
+        
+        row.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                ${item.aggregation_label || item.ticker || item.name || '--'}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-right text-sm ${getValueColor(item.daily_profit_value)}">
+                ${formatCurrency(item.daily_profit_value || 0)}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-right text-sm ${getValueColor(item.daily_profit_perc)}">
+                ${formatPercentage(item.daily_profit_perc || 0)}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-right text-sm ${getValueColor(item.total_profit_value)}">
+                ${formatCurrency(item.total_profit_value || 0)}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-right text-sm ${getValueColor(item.total_profit_perc)}">
+                ${formatPercentage(item.total_profit_perc || 0)}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-right text-sm ${getValueColor(item.total_profit_with_dividends)}">
+                ${formatCurrency(item.total_profit_with_dividends || item.total_profit_value || 0)}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-right text-sm ${getValueColor(item.total_profit_perc_with_dividends)}">
+                ${formatPercentage(item.total_profit_perc_with_dividends || item.total_profit_perc || 0)}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900">
+                ${formatCurrency(item.current_total_value || 0)}
+            </td>
+        `;
+        
+        tbody.appendChild(row);
+    });
+}
+
+// Função para obter cor baseada no valor
+function getValueColor(value) {
+    const numValue = parseFloat(value) || 0;
+    return numValue >= 0 ? 'text-green-600' : 'text-red-600';
+}
+
+// Função para mostrar/esconder loading
+function showLoading(show) {
+    const loadingState = document.getElementById('loadingState');
+    const dataTable = document.getElementById('dataTable');
+    
+    if (show) {
+        loadingState.classList.remove('hidden');
+        dataTable.classList.add('hidden');
+    } else {
+        loadingState.classList.add('hidden');
+        dataTable.classList.remove('hidden');
+    }
+}
+
+// Função para mostrar/esconder estado vazio
+function showEmptyState(show) {
+    const emptyState = document.getElementById('emptyState');
+    const dataTable = document.getElementById('dataTable');
+    
+    if (show) {
+        emptyState.classList.remove('hidden');
+        dataTable.classList.add('hidden');
+    } else {
+        emptyState.classList.add('hidden');
+        dataTable.classList.remove('hidden');
+    }
+}
+
+// Função para mostrar erro
+function showError(message) {
+    if (typeof showToast !== 'undefined') {
+        showToast(message, 'error');
+    } else {
+        alert(message);
+    }
+}
+
+// Função para atualizar timestamp
+function updateLastUpdate() {
+    const element = document.getElementById('lastUpdate');
+    const now = new Date();
+    element.textContent = now.toLocaleString('pt-BR');
+}
+
+// Funções de formatação
+function formatCurrency(value) {
+    return new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL'
+    }).format(value || 0);
+}
+
+function formatPercentage(value) {
+    return new Intl.NumberFormat('pt-BR', {
+        style: 'percent',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    }).format((value || 0) / 100);
+}
+</script>
+{% endblock %}
