@@ -42,3 +42,8 @@ def data_update():
 def rentabilidade():
     """Performance analysis page"""
     return render_template('rentabilidade.html')
+
+@page_bp.route('/freelas')
+def freelas():
+    """Freelance / ganhos extras page"""
+    return render_template('freelance.html')

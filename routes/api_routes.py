@@ -8,6 +8,7 @@ import re
 import time
 import threading
 from functools import wraps
+import requests
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -1422,3 +1423,187 @@ def get_performance_data():
     except Exception as e:
         logger.error(f"Error getting performance data: {e}")
         return jsonify({'error': 'Failed to get performance data'}), 500
+
+# =============================
+# Freelance / Extra Earnings API
+# =============================
+
+# Cache dedicado para resposta consolidada de freelas (TTL manual maior)
+_freelas_cache = { 'data': None, 'timestamp': 0 }
+FREELAS_CACHE_TTL = 1800  # 30 minutos
+FREELAS_SOURCE_URL = os.getenv('FREELAS_SOURCE_URL', 'https://script.google.com/macros/s/AKfycbyDcIKkqkowYAsOdQK2M5_vRT_EX8A6kjAkWS16xeWE_nS3ZhuYZbYlVnFNZ_XdoPX2TA/exec')
+FREELAS_FALLBACK_FILE = os.getenv('FREELAS_FALLBACK_FILE', 'data/freelas_sample.json')
+
+@api_bp.route('/freelas/earnings', methods=['GET'])
+def get_freelas_earnings():
+    """Retorna ganhos de freelance / externos com agregações (mensal, por tipo, por descrição).
+
+    Query params opcionais (aplicados server-side se fornecidos):
+      - month: filtra por mês no formato YYYY-MM
+      - tipo: filtra por tipo exato
+      - search: busca (case-insensitive) em descrição
+    """
+    try:
+        import time, json, os
+        now = time.time()
+        month_filter = request.args.get('month')
+        tipo_filter = request.args.get('tipo')
+        search_filter = request.args.get('search')
+        force_fallback = request.args.get('fallback') == '1'
+
+        # Usa cache se válido e sem filtros (para evitar cache fragmentado)
+        use_cache = not any([month_filter, tipo_filter, search_filter])
+        if not force_fallback and use_cache and _freelas_cache['data'] and (now - _freelas_cache['timestamp'] < FREELAS_CACHE_TTL):
+            logger.debug('Freelas cache hit')
+            base_payload = _freelas_cache['data']
+        else:
+            raw_data = None
+            if not force_fallback:
+                logger.info(f'Carregando dados de freelas da fonte externa: {FREELAS_SOURCE_URL}')
+                try:
+                    resp = requests.get(FREELAS_SOURCE_URL, timeout=25, headers={
+                        'Accept': 'application/json, text/plain, */*',
+                        'User-Agent': 'finance-portal/1.0'
+                    })
+                except Exception as e:
+                    logger.error(f'Erro ao acessar fonte de freelas: {e}. Tentando fallback local...')
+                else:
+                    if resp.status_code == 200:
+                        text_snippet = resp.text[:200].strip().replace('\n', ' ')
+                        # Detecta se parece JSON
+                        if text_snippet.startswith('{') or text_snippet.startswith('['):
+                            try:
+                                raw_data = resp.json()
+                            except Exception as e:
+                                logger.error(f'Erro ao decodificar JSON de freelas: {e}. Trecho resposta: {text_snippet}')
+                        else:
+                            logger.error(f'Resposta externa não é JSON (provável página de login / HTML). Trecho: {text_snippet}')
+                    else:
+                        logger.error(f'Fonte externa respondeu status {resp.status_code}. Tentando fallback local...')
+            # Fallback local se não obteve dados válidos
+            if raw_data is None:
+                try:
+                    if os.path.exists(FREELAS_FALLBACK_FILE):
+                        with open(FREELAS_FALLBACK_FILE, 'r', encoding='utf-8') as f:
+                            raw_data = json.load(f)
+                        logger.info(f'Carregado fallback local {FREELAS_FALLBACK_FILE}')
+                    else:
+                        logger.warning(f'Fallback local não encontrado em {FREELAS_FALLBACK_FILE}')
+                except Exception as e:
+                    logger.error(f'Erro ao carregar fallback local: {e}')
+            if raw_data is None:
+                # Se ainda sem dados, retorna erro descritivo
+                return jsonify({'error': 'Fonte externa inválida e sem fallback', 'source_url': FREELAS_SOURCE_URL}), 502
+
+            # Normaliza registros
+            normalized = []
+            for item in raw_data:
+                try:
+                    data_lcto_raw = item.get('Data Lançamento') or item.get('Data')
+                    # Extrai apenas a data (YYYY-MM-DD)
+                    data_iso = None
+                    if data_lcto_raw:
+                        try:
+                            # Remove Z, pega parte antes de T
+                            data_iso = data_lcto_raw.split('T')[0]
+                        except Exception:
+                            data_iso = data_lcto_raw[:10]
+                    mes_lcto_raw = item.get('Mes Lcto') or ''  # ex: jan.23
+                    historico = item.get('Histórico') or item.get('Historico') or ''
+                    descricao = item.get('Descrição') or item.get('Descricao') or ''
+                    valor = float(item.get('Valor') or 0)
+                    tipo = item.get('Tipo') or 'Outro'
+                    # Mês padrão YYYY-MM
+                    mes_padrao = None
+                    if data_iso and len(data_iso) >= 7:
+                        mes_padrao = data_iso[:7]
+                    normalized.append({
+                        'data_lancamento': data_iso,
+                        'mes_lcto': mes_lcto_raw,
+                        'mes': mes_padrao,
+                        'historico': historico,
+                        'descricao': descricao,
+                        'valor': valor,
+                        'tipo': tipo
+                    })
+                except Exception as e:
+                    logger.warning(f'Falha ao normalizar item freelas: {e} | item={item}')
+                    continue
+
+            # Agregações gerais (sobre dataset completo)
+            monthly_totals = {}
+            tipo_totals = {}
+            descricao_totals = {}
+            first_date = None
+            last_date = None
+            total = 0.0
+            for r in normalized:
+                v = r['valor']
+                total += v
+                if r['mes']:
+                    monthly_totals[r['mes']] = monthly_totals.get(r['mes'], 0) + v
+                tipo_totals[r['tipo']] = tipo_totals.get(r['tipo'], 0) + v
+                descricao_totals[r['descricao']] = descricao_totals.get(r['descricao'], 0) + v
+                d = r['data_lancamento']
+                if d:
+                    if not first_date or d < first_date:
+                        first_date = d
+                    if not last_date or d > last_date:
+                        last_date = d
+
+            base_payload = {
+                'data': normalized,
+                'aggregations': {
+                    'monthly_totals': monthly_totals,
+                    'tipo_totals': tipo_totals,
+                    'descricao_totals': descricao_totals,
+                    'overall_total': total,
+                    'first_date': first_date,
+                    'last_date': last_date,
+                    'months_available': sorted(list(monthly_totals.keys()))
+                }
+            }
+            if use_cache:
+                _freelas_cache['data'] = base_payload
+                _freelas_cache['timestamp'] = now
+
+        # Aplica filtros em memória (se houver)
+        filtered = base_payload['data']
+        if month_filter:
+            filtered = [r for r in filtered if r['mes'] == month_filter]
+        if tipo_filter:
+            filtered = [r for r in filtered if r['tipo'] == tipo_filter]
+        if search_filter:
+            s = search_filter.lower()
+            filtered = [r for r in filtered if s in (r['descricao'] or '').lower()]
+
+        # Recalcula agregações filtradas (para gráficos dinâmicos client-side se quiser)
+        filtered_monthly = {}
+        filtered_tipo = {}
+        filtered_total = 0.0
+        for r in filtered:
+            v = r['valor']
+            filtered_total += v
+            if r['mes']:
+                filtered_monthly[r['mes']] = filtered_monthly.get(r['mes'], 0) + v
+            filtered_tipo[r['tipo']] = filtered_tipo.get(r['tipo'], 0) + v
+
+        return jsonify({
+            'records': filtered,
+            'count': len(filtered),
+            'filters': {
+                'month': month_filter,
+                'tipo': tipo_filter,
+                'search': search_filter
+            },
+            'aggregations': base_payload['aggregations'],  # agregações gerais
+            'filtered_aggregations': {
+                'monthly_totals': filtered_monthly,
+                'tipo_totals': filtered_tipo,
+                'overall_total': filtered_total
+            },
+            'last_updated': datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Erro ao processar freelas: {e}")
+        return jsonify({'error': 'Falha ao processar dados de freelas'}), 500
