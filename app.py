@@ -94,4 +94,4 @@ def get_fresh_supabase_client():
     return create_client(supabase_url, supabase_key)
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=4000)
+    app.run(debug=True)
