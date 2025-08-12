@@ -1,20 +1,61 @@
+# version: '3.8'
+
+# services:
+#   web:
+#     build: .
+#     ports:
+#       - "5000:5000"
+#     environment:
+#       - FLASK_ENV=production
+#       - FLASK_DEBUG=False
+#     env_file:
+#       - .env
+#     restart: unless-stopped
+#     depends_on:
+#       - redis
+#     volumes:
+#       - ./logs:/app/logs
+      
+# volumes:
+#   redis_data:
+
+
 version: '3.8'
 
 services:
   web:
-    build: .
+    # A configuração 'build' agora aponta diretamente para o seu repositório GitHub.
+    # O Docker fará o clone e construirá a imagem a partir deste contexto.
+    build:
+      context: https://github.com/alexandrechoske/finance_portal.git
+      # O Dockerfile está na raiz do seu repositório Git, então especificamos 'Dockerfile'.
+      dockerfile: Dockerfile
     ports:
       - "5000:5000"
     environment:
       - FLASK_ENV=production
       - FLASK_DEBUG=False
     env_file:
+      # Certifique-se de que o arquivo .env no servidor contém suas variáveis de ambiente.
+      # Ele não precisa estar no GitHub.
       - .env
     restart: unless-stopped
     depends_on:
+      # Lembre-se de que o serviço 'redis' ainda precisa ser definido no seu docker-compose.yml
+      # se a sua aplicação depende dele. O exemplo abaixo inclui a definição do redis.
       - redis
     volumes:
+      # Mantenha este volume para persistir os logs no servidor, mesmo ao reconstruir.
       - ./logs:/app/logs
       
+  # Adicione a definição do serviço Redis se sua aplicação depender dele.
+  # Se você não usa Redis, pode remover esta seção e a linha 'depends_on: - redis' acima.
+  redis:
+    image: redis:latest
+    container_name: redis_for_app
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+
 volumes:
   redis_data:
