@@ -545,6 +545,455 @@ def delete_category(category_id):
         logger.error(f"Error deleting category: {e}")
         return jsonify({'error': 'Failed to delete category'}), 500
 
+# -----------------------------
+# Ganhos Consolidados (CRUD)
+# -----------------------------
+@api_bp.route('/ganhos', methods=['GET'])
+def list_ganhos():
+    """List ganhos consolidados with simple aggregations and filters
+
+    Query params:
+      - page, per_page (pagination)
+      - month (YYYY-MM) to filter by dt_lcto prefix
+      - categoria, classe, search
+    """
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 1000, type=int)
+        month = request.args.get('month', '')
+        categoria = request.args.get('categoria', '')
+        classe = request.args.get('classe', '')
+        search = request.args.get('search', '')
+
+        table = supabase.table('ganhos_gerais')
+        query = table.select('*')
+
+        # Apply server-side filters if provided
+        if month:
+            query = query.ilike('dt_lcto', f'{month}%')
+        if categoria:
+            query = query.ilike('categoria_lcto', f'%{categoria}%')
+        if classe:
+            query = query.ilike('classe_lcto', f'%{classe}%')
+        if search:
+            query = query.ilike('des_lcto', f'%{search}%')
+
+        # Pagination / execute
+        if per_page and per_page > 0:
+            offset = (page - 1) * per_page
+            resp = query.order('created_at', desc=True).range(offset, offset + per_page - 1).execute()
+        else:
+            resp = query.order('created_at', desc=True).execute()
+
+        records = resp.data or []
+
+        # Aggregations
+        monthly = {}
+        by_categoria = {}
+        by_classe = {}
+        total = 0.0
+        months_available = set()
+        for r in records:
+            dt = (r.get('dt_lcto') or '')
+            month_key = dt[:7] if dt and len(dt) >= 7 else ''
+            try:
+                v = float(str(r.get('vlr_lcto') or '0').replace(',', '.'))
+            except Exception:
+                v = 0.0
+            total += v
+            if month_key:
+                monthly[month_key] = monthly.get(month_key, 0) + v
+                months_available.add(month_key)
+            cat = r.get('categoria_lcto') or ''
+            by_categoria[cat] = by_categoria.get(cat, 0) + v
+            cl = r.get('classe_lcto') or ''
+            by_classe[cl] = by_classe.get(cl, 0) + v
+
+        return jsonify({
+            'data': records,
+            'page': page,
+            'per_page': per_page,
+            'aggregations': {
+                'monthly_totals': monthly,
+                'categoria_totals': by_categoria,
+                'classe_totals': by_classe,
+                'overall_total': total,
+                'months_available': sorted(list(months_available))
+            }
+        })
+    except Exception as e:
+        logger.error(f'Error listing ganhos: {e}')
+        return jsonify({'error': 'Failed to list ganhos'}), 500
+
+
+@api_bp.route('/ganhos', methods=['POST'])
+def create_ganho():
+    """Create a new ganho record in ganhos_gerais"""
+    try:
+        data = request.get_json() or {}
+        # Minimal validation/normalization
+        data = {
+            'dt_lcto': data.get('dt_lcto'),
+            'des_lcto': data.get('des_lcto'),
+            'vlr_lcto': data.get('vlr_lcto'),
+            'categoria_lcto': data.get('categoria_lcto'),
+            'classe_lcto': data.get('classe_lcto')
+        }
+        resp = supabase.table('ganhos_gerais').insert(data).execute()
+        inserted = resp.data[0] if resp.data else None
+        return jsonify(inserted), 201
+    except Exception as e:
+        logger.error(f'Error creating ganho: {e}')
+        return jsonify({'error': 'Failed to create ganho'}), 500
+
+
+@api_bp.route('/ganhos/import', methods=['POST'])
+def import_ganhos_bulk():
+    """Import multiple ganhos records (expects a JSON array).
+
+    Body: [ { dt_lcto, des_lcto, vlr_lcto, categoria_lcto, classe_lcto }, ... ]
+    """
+    try:
+        payload = request.get_json(force=True, silent=False)
+        if not isinstance(payload, list) or not payload:
+            return jsonify({'error': 'Body must be a non-empty JSON array'}), 400
+
+        # Normalize fields per item to the expected schema
+        normalized = []
+        for item in payload:
+            if not isinstance(item, dict):
+                continue
+            normalized.append({
+                'dt_lcto': item.get('dt_lcto'),
+                'des_lcto': item.get('des_lcto'),
+                'vlr_lcto': item.get('vlr_lcto'),
+                'categoria_lcto': item.get('categoria_lcto'),
+                'classe_lcto': item.get('classe_lcto')
+            })
+
+        if not normalized:
+            return jsonify({'error': 'No valid items to import'}), 400
+
+        resp = supabase.table('ganhos_gerais').insert(normalized).execute()
+        inserted = len(resp.data or [])
+        return jsonify({'inserted': inserted, 'items': resp.data}), 200
+    except Exception as e:
+        logger.error(f'Error importing ganhos: {e}')
+        return jsonify({'error': 'Failed to import ganhos'}), 500
+
+
+@api_bp.route('/ganhos/<int:ganho_id>', methods=['PUT'])
+def update_ganho(ganho_id):
+    try:
+        data = request.get_json() or {}
+        resp = supabase.table('ganhos_gerais').update(data).eq('id', ganho_id).execute()
+        updated = resp.data[0] if resp.data else None
+        return jsonify(updated)
+    except Exception as e:
+        logger.error(f'Error updating ganho {ganho_id}: {e}')
+        return jsonify({'error': 'Failed to update ganho'}), 500
+
+
+@api_bp.route('/ganhos/<int:ganho_id>', methods=['DELETE'])
+def delete_ganho(ganho_id):
+    try:
+        supabase.table('ganhos_gerais').delete().eq('id', ganho_id).execute()
+        return jsonify({'message': 'Deleted'})
+    except Exception as e:
+        logger.error(f'Error deleting ganho {ganho_id}: {e}')
+        return jsonify({'error': 'Failed to delete ganho'}), 500
+
+
+@api_bp.route('/debug/ganhos-raw', methods=['GET'])
+def debug_ganhos_raw():
+    """Debug endpoint: returns raw ganhos_gerais records (limited)."""
+    try:
+        limit = request.args.get('limit', 100, type=int)
+        resp = supabase.table('ganhos_gerais').select('*').order('created_at', desc=True).limit(limit).execute()
+        return jsonify({'count': len(resp.data or []), 'data': resp.data})
+    except Exception as e:
+        logger.error(f'Error getting ganhos raw: {e}')
+        return jsonify({'error': 'Failed to get ganhos raw'}), 500
+
+# -----------------------------
+# Ganhos Unificados (Usando VIEW)
+# -----------------------------
+@api_bp.route('/ganhos-unificados', methods=['GET'])
+@optimized_cache_headers
+def get_ganhos_unificados():
+    """Get unified ganhos data from view with filters and pagination"""
+    try:
+        # Get query parameters
+        page = int(request.args.get('page', 1))
+        per_page = min(int(request.args.get('per_page', 50)), 100)
+        month = request.args.get('month')  # Format: YYYY-MM
+        categoria = request.args.get('categoria')
+        tipo_origem = request.args.get('tipo_origem')  # 'ganho_geral' or 'dividendo'
+        search = request.args.get('search', '').strip()
+        
+        # Calculate offset
+        offset = (page - 1) * per_page
+        
+        # Build filters
+        filters = []
+        
+        if month:
+            filters.append(('gte', 'data_lancamento', f'{month}-01'))
+            filters.append(('lte', 'data_lancamento', f'{month}-31'))
+        
+        if categoria:
+            filters.append(('eq', 'categoria', categoria))
+            
+        if tipo_origem:
+            filters.append(('eq', 'tipo_origem', tipo_origem))
+        
+        if search:
+            filters.append(('ilike', 'descricao', f'%{search}%'))
+        
+        # Get total count for pagination (use view ganhos_unificados)
+        count_query = supabase.table('ganhos_unificados').select('id', count='exact')
+        for filter_type, field, value in filters:
+            if filter_type == 'eq':
+                count_query = count_query.eq(field, value)
+            elif filter_type == 'gte':
+                count_query = count_query.gte(field, value)
+            elif filter_type == 'lte':
+                count_query = count_query.lte(field, value)
+            elif filter_type == 'ilike':
+                count_query = count_query.ilike(field, value)
+
+        count_response = count_query.execute()
+        total_records = count_response.count
+
+        # Get data with pagination (from view ganhos_unificados)
+        query = supabase.table('ganhos_unificados').select('*')
+        for filter_type, field, value in filters:
+            if filter_type == 'eq':
+                query = query.eq(field, value)
+            elif filter_type == 'gte':
+                query = query.gte(field, value)
+            elif filter_type == 'lte':
+                query = query.lte(field, value)
+            elif filter_type == 'ilike':
+                query = query.ilike(field, value)
+
+        query = query.order('data_lancamento', desc=True).limit(per_page).range(offset, offset + per_page - 1)
+        data_response = query.execute()
+
+        return jsonify({
+            'success': True,
+            'data': data_response.data,
+            'pagination': {
+                'page': page,
+                'per_page': per_page,
+                'total_records': total_records,
+                'total_pages': (total_records + per_page - 1) // per_page
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting ganhos unificados: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@api_bp.route('/ganhos-unificados/metrics', methods=['GET'])
+@optimized_cache_headers
+def get_ganhos_unificados_metrics():
+    """Get metrics for ganhos unificados dashboard with filters"""
+    try:
+        from datetime import datetime, date
+        current_year = datetime.now().year
+        current_month = datetime.now().strftime('%Y-%m')
+        
+        # Build base query
+        query = supabase.table('ganhos_unificados').select('*')
+        
+        # Apply filters from query parameters
+        search = request.args.get('search', '').strip()
+        month_filter = request.args.get('month', '').strip()
+        categoria_filter = request.args.get('categoria', '').strip()
+        tipo_origem_filter = request.args.get('tipo_origem', '').strip()
+        
+        if search:
+            query = query.ilike('descricao', f'%{search}%')
+        
+    # NOTE: applying complex date range filters to Supabase queries sometimes
+    # causes unexpected errors in the client. To be robust, we will fetch the
+    # filtered-by-type/category/search result set (without month) and then
+    # apply the month filter in Python.
+        
+        if categoria_filter:
+            query = query.eq('categoria', categoria_filter)
+            
+        if tipo_origem_filter:
+            query = query.eq('tipo_origem', tipo_origem_filter)
+        
+        # Get filtered data
+        all_data_response = query.execute()
+        all_data = all_data_response.data
+
+        # Apply month filter in Python for robustness (month format: YYYY-MM)
+        if month_filter:
+            try:
+                all_data = [item for item in all_data if item.get('data_lancamento') and str(item.get('data_lancamento')).startswith(month_filter)]
+            except Exception as e:
+                logger.error(f"Error applying month filter in Python: {e}")
+                # If something unexpected happens, keep original data but log the issue
+                pass
+
+        # Calculate metrics
+        total_geral = sum(float(item['valor'] or 0) for item in all_data)
+
+        # Current year
+        current_year_data = [item for item in all_data if item['data_lancamento'] and item['data_lancamento'].startswith(str(current_year))]
+        total_ano_atual = sum(float(item['valor'] or 0) for item in current_year_data)
+
+        # Current month
+        current_month_data = [item for item in all_data if item['data_lancamento'] and item['data_lancamento'].startswith(current_month)]
+        total_mes_atual = sum(float(item['valor'] or 0) for item in current_month_data)
+
+        # By tipo_origem
+        ganhos_gerais = [item for item in all_data if item['tipo_origem'] == 'ganho_geral']
+        dividendos = [item for item in all_data if item['tipo_origem'] == 'dividendo']
+
+        total_ganhos_gerais = sum(float(item['valor'] or 0) for item in ganhos_gerais)
+        total_dividendos = sum(float(item['valor'] or 0) for item in dividendos)
+
+        # Monthly aggregation for chart
+        monthly_data = {}
+        for item in all_data:
+            if item['data_lancamento']:
+                month_key = item['data_lancamento'][:7]  # YYYY-MM
+                if month_key not in monthly_data:
+                    monthly_data[month_key] = {
+                        'ganho_geral': 0,
+                        'dividendo': 0,
+                        'total': 0
+                    }
+                valor = float(item['valor'] or 0)
+                monthly_data[month_key][item['tipo_origem']] += valor
+                monthly_data[month_key]['total'] += valor
+
+        # Sort monthly data
+        monthly_chart = []
+        for month in sorted(monthly_data.keys()):
+            monthly_chart.append({
+                'month': month,
+                'ganho_geral': monthly_data[month]['ganho_geral'],
+                'dividendo': monthly_data[month]['dividendo'],
+                'total': monthly_data[month]['total']
+            })
+
+        # Category breakdown
+        category_data = {}
+        for item in all_data:
+            categoria = item['categoria'] or 'Outros'
+            if categoria not in category_data:
+                category_data[categoria] = 0
+            category_data[categoria] += float(item['valor'] or 0)
+
+        category_chart = [{'name': k, 'value': v} for k, v in category_data.items()]
+        category_chart.sort(key=lambda x: x['value'], reverse=True)
+
+        # Prepare monthly breakdown by category for stacked monthly chart
+        # choose top N categories and aggregate others into 'Outros'
+        TOP_N = 8
+        top_categories = [c['name'] for c in category_chart[:TOP_N]]
+
+        # Initialize monthly-category structure
+        monthly_category = {}
+        for month in monthly_data.keys():
+            monthly_category[month] = {cat: 0 for cat in top_categories}
+            monthly_category[month]['Outros'] = 0
+
+        # Fill monthly-category from all_data
+        for item in all_data:
+            if not item.get('data_lancamento'):
+                continue
+            month_key = item['data_lancamento'][:7]
+            categoria = item.get('categoria') or 'Outros'
+            bucket = categoria if categoria in top_categories else 'Outros'
+            valor = float(item.get('valor') or 0)
+            if month_key not in monthly_category:
+                monthly_category[month_key] = {cat: 0 for cat in top_categories}
+                monthly_category[month_key]['Outros'] = 0
+            monthly_category[month_key][bucket] += valor
+
+        # Build monthly_by_category payload
+        months_sorted = sorted(monthly_category.keys())
+
+        # Ensure 'Outros' appears once: if it's already in top_categories don't append again
+        categories_list = list(top_categories)
+        if 'Outros' not in categories_list:
+            categories_list.append('Outros')
+
+        monthly_by_category = {
+            'months': months_sorted[-12:],
+            'categories': categories_list,
+            'datasets': []
+        }
+
+        for cat in monthly_by_category['categories']:
+            series = [monthly_category[m].get(cat, 0) for m in months_sorted[-12:]]
+            monthly_by_category['datasets'].append({'name': cat, 'data': series})
+
+        # Classes breakdown
+        classes_data = {}
+        for item in all_data:
+            classe = item['classe'] or 'Outros'
+            if classe not in classes_data:
+                classes_data[classe] = 0
+            classes_data[classe] += float(item['valor'] or 0)
+
+        classes_chart = [{'name': k, 'value': v} for k, v in classes_data.items()]
+        classes_chart.sort(key=lambda x: x['value'], reverse=True)
+
+        return jsonify({
+            'success': True,
+            'metrics': {
+                'total_geral': total_geral,
+                'total_ano_atual': total_ano_atual,
+                'total_mes_atual': total_mes_atual,
+                'total_ganhos_gerais': total_ganhos_gerais,
+                'total_dividendos': total_dividendos,
+                'count_total': len(all_data),
+                'count_ganhos_gerais': len(ganhos_gerais),
+                'count_dividendos': len(dividendos)
+            },
+            'charts': {
+                'monthly': monthly_chart[-12:],  # Last 12 months
+                'categories': category_chart[:10],  # Top 10 categories
+                'classes': classes_chart[:10],  # Top 10 classes
+                'monthly_by_category': monthly_by_category
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting ganhos unificados metrics: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@api_bp.route('/ganhos-unificados/categories', methods=['GET'])
+@optimized_cache_headers
+def get_ganhos_unificados_categories():
+    """Get unique categories from ganhos unificados"""
+    try:
+        # Get unique categories from view
+        response = supabase.table('ganhos_unificados').select('categoria').execute()
+        categories = list(set([item['categoria'] for item in response.data if item['categoria']]))
+        categories.sort()
+
+        # Get unique tipos_origem
+        tipos_origem = ['ganho_geral', 'dividendo']
+
+        return jsonify({
+            'success': True,
+            'categories': categories,
+            'tipos_origem': tipos_origem
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting ganhos unificados categories: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @api_bp.route('/dashboard/monthly-investment', methods=['GET'])
 @optimized_cache_headers
 def get_monthly_investment():
@@ -1423,187 +1872,3 @@ def get_performance_data():
     except Exception as e:
         logger.error(f"Error getting performance data: {e}")
         return jsonify({'error': 'Failed to get performance data'}), 500
-
-# =============================
-# Freelance / Extra Earnings API
-# =============================
-
-# Cache dedicado para resposta consolidada de freelas (TTL manual maior)
-_freelas_cache = { 'data': None, 'timestamp': 0 }
-FREELAS_CACHE_TTL = 1800  # 30 minutos
-FREELAS_SOURCE_URL = os.getenv('FREELAS_SOURCE_URL', 'https://script.google.com/macros/s/AKfycbyDcIKkqkowYAsOdQK2M5_vRT_EX8A6kjAkWS16xeWE_nS3ZhuYZbYlVnFNZ_XdoPX2TA/exec')
-FREELAS_FALLBACK_FILE = os.getenv('FREELAS_FALLBACK_FILE', 'data/freelas_sample.json')
-
-@api_bp.route('/freelas/earnings', methods=['GET'])
-def get_freelas_earnings():
-    """Retorna ganhos de freelance / externos com agregações (mensal, por tipo, por descrição).
-
-    Query params opcionais (aplicados server-side se fornecidos):
-      - month: filtra por mês no formato YYYY-MM
-      - tipo: filtra por tipo exato
-      - search: busca (case-insensitive) em descrição
-    """
-    try:
-        import time, json, os
-        now = time.time()
-        month_filter = request.args.get('month')
-        tipo_filter = request.args.get('tipo')
-        search_filter = request.args.get('search')
-        force_fallback = request.args.get('fallback') == '1'
-
-        # Usa cache se válido e sem filtros (para evitar cache fragmentado)
-        use_cache = not any([month_filter, tipo_filter, search_filter])
-        if not force_fallback and use_cache and _freelas_cache['data'] and (now - _freelas_cache['timestamp'] < FREELAS_CACHE_TTL):
-            logger.debug('Freelas cache hit')
-            base_payload = _freelas_cache['data']
-        else:
-            raw_data = None
-            if not force_fallback:
-                logger.info(f'Carregando dados de freelas da fonte externa: {FREELAS_SOURCE_URL}')
-                try:
-                    resp = requests.get(FREELAS_SOURCE_URL, timeout=25, headers={
-                        'Accept': 'application/json, text/plain, */*',
-                        'User-Agent': 'finance-portal/1.0'
-                    })
-                except Exception as e:
-                    logger.error(f'Erro ao acessar fonte de freelas: {e}. Tentando fallback local...')
-                else:
-                    if resp.status_code == 200:
-                        text_snippet = resp.text[:200].strip().replace('\n', ' ')
-                        # Detecta se parece JSON
-                        if text_snippet.startswith('{') or text_snippet.startswith('['):
-                            try:
-                                raw_data = resp.json()
-                            except Exception as e:
-                                logger.error(f'Erro ao decodificar JSON de freelas: {e}. Trecho resposta: {text_snippet}')
-                        else:
-                            logger.error(f'Resposta externa não é JSON (provável página de login / HTML). Trecho: {text_snippet}')
-                    else:
-                        logger.error(f'Fonte externa respondeu status {resp.status_code}. Tentando fallback local...')
-            # Fallback local se não obteve dados válidos
-            if raw_data is None:
-                try:
-                    if os.path.exists(FREELAS_FALLBACK_FILE):
-                        with open(FREELAS_FALLBACK_FILE, 'r', encoding='utf-8') as f:
-                            raw_data = json.load(f)
-                        logger.info(f'Carregado fallback local {FREELAS_FALLBACK_FILE}')
-                    else:
-                        logger.warning(f'Fallback local não encontrado em {FREELAS_FALLBACK_FILE}')
-                except Exception as e:
-                    logger.error(f'Erro ao carregar fallback local: {e}')
-            if raw_data is None:
-                # Se ainda sem dados, retorna erro descritivo
-                return jsonify({'error': 'Fonte externa inválida e sem fallback', 'source_url': FREELAS_SOURCE_URL}), 502
-
-            # Normaliza registros
-            normalized = []
-            for item in raw_data:
-                try:
-                    data_lcto_raw = item.get('Data Lançamento') or item.get('Data')
-                    # Extrai apenas a data (YYYY-MM-DD)
-                    data_iso = None
-                    if data_lcto_raw:
-                        try:
-                            # Remove Z, pega parte antes de T
-                            data_iso = data_lcto_raw.split('T')[0]
-                        except Exception:
-                            data_iso = data_lcto_raw[:10]
-                    mes_lcto_raw = item.get('Mes Lcto') or ''  # ex: jan.23
-                    historico = item.get('Histórico') or item.get('Historico') or ''
-                    descricao = item.get('Descrição') or item.get('Descricao') or ''
-                    valor = float(item.get('Valor') or 0)
-                    tipo = item.get('Tipo') or 'Outro'
-                    # Mês padrão YYYY-MM
-                    mes_padrao = None
-                    if data_iso and len(data_iso) >= 7:
-                        mes_padrao = data_iso[:7]
-                    normalized.append({
-                        'data_lancamento': data_iso,
-                        'mes_lcto': mes_lcto_raw,
-                        'mes': mes_padrao,
-                        'historico': historico,
-                        'descricao': descricao,
-                        'valor': valor,
-                        'tipo': tipo
-                    })
-                except Exception as e:
-                    logger.warning(f'Falha ao normalizar item freelas: {e} | item={item}')
-                    continue
-
-            # Agregações gerais (sobre dataset completo)
-            monthly_totals = {}
-            tipo_totals = {}
-            descricao_totals = {}
-            first_date = None
-            last_date = None
-            total = 0.0
-            for r in normalized:
-                v = r['valor']
-                total += v
-                if r['mes']:
-                    monthly_totals[r['mes']] = monthly_totals.get(r['mes'], 0) + v
-                tipo_totals[r['tipo']] = tipo_totals.get(r['tipo'], 0) + v
-                descricao_totals[r['descricao']] = descricao_totals.get(r['descricao'], 0) + v
-                d = r['data_lancamento']
-                if d:
-                    if not first_date or d < first_date:
-                        first_date = d
-                    if not last_date or d > last_date:
-                        last_date = d
-
-            base_payload = {
-                'data': normalized,
-                'aggregations': {
-                    'monthly_totals': monthly_totals,
-                    'tipo_totals': tipo_totals,
-                    'descricao_totals': descricao_totals,
-                    'overall_total': total,
-                    'first_date': first_date,
-                    'last_date': last_date,
-                    'months_available': sorted(list(monthly_totals.keys()))
-                }
-            }
-            if use_cache:
-                _freelas_cache['data'] = base_payload
-                _freelas_cache['timestamp'] = now
-
-        # Aplica filtros em memória (se houver)
-        filtered = base_payload['data']
-        if month_filter:
-            filtered = [r for r in filtered if r['mes'] == month_filter]
-        if tipo_filter:
-            filtered = [r for r in filtered if r['tipo'] == tipo_filter]
-        if search_filter:
-            s = search_filter.lower()
-            filtered = [r for r in filtered if s in (r['descricao'] or '').lower()]
-
-        # Recalcula agregações filtradas (para gráficos dinâmicos client-side se quiser)
-        filtered_monthly = {}
-        filtered_tipo = {}
-        filtered_total = 0.0
-        for r in filtered:
-            v = r['valor']
-            filtered_total += v
-            if r['mes']:
-                filtered_monthly[r['mes']] = filtered_monthly.get(r['mes'], 0) + v
-            filtered_tipo[r['tipo']] = filtered_tipo.get(r['tipo'], 0) + v
-
-        return jsonify({
-            'records': filtered,
-            'count': len(filtered),
-            'filters': {
-                'month': month_filter,
-                'tipo': tipo_filter,
-                'search': search_filter
-            },
-            'aggregations': base_payload['aggregations'],  # agregações gerais
-            'filtered_aggregations': {
-                'monthly_totals': filtered_monthly,
-                'tipo_totals': filtered_tipo,
-                'overall_total': filtered_total
-            },
-            'last_updated': datetime.now().isoformat()
-        })
-    except Exception as e:
-        logger.error(f"Erro ao processar freelas: {e}")
-        return jsonify({'error': 'Falha ao processar dados de freelas'}), 500

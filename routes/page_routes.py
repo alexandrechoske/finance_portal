@@ -43,7 +43,9 @@ def rentabilidade():
     """Performance analysis page"""
     return render_template('rentabilidade.html')
 
-@page_bp.route('/freelas')
-def freelas():
-    """Freelance / ganhos extras page"""
-    return render_template('freelance.html')
+@page_bp.route('/ganhos-gerais')
+def ganhos_gerais():
+    """Ganhos Gerais analysis page"""
+    return render_template('ganhos_gerais.html')
+
+# CRUD de ganhos é feito via /api/ganhos (padrão das demais páginas)

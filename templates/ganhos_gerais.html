@@ -1,0 +1,927 @@
+{% extends "base.html" %}
+
+{% block title %}Ganhos Gerais - Meu Patrimônio{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <div class="flex justify-between items-center">
+        <h1 class="text-3xl font-bold text-gray-900">Ganhos Gerais</h1>
+        <div class="flex gap-3">
+            <button onclick="openCreateModal()" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
+                <i class="fas fa-plus"></i>
+                Novo Ganho
+            </button>
+            <button onclick="loadData()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors">
+                <i class="fas fa-sync-alt"></i>
+                Atualizar
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Metrics Cards -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+    <!-- Total Geral -->
+    <div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-blue-100 text-blue-600">
+                <i class="fas fa-coins text-xl"></i>
+            </div>
+            <div class="ml-4">
+                <p class="text-sm font-medium text-gray-500">Total Geral</p>
+                <p id="totalGeral" class="text-2xl font-semibold text-gray-900">R$ 0,00</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ano Atual -->
+    <div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-green-100 text-green-600">
+                <i class="fas fa-calendar-alt text-xl"></i>
+            </div>
+            <div class="ml-4">
+                <p class="text-sm font-medium text-gray-500">Ano Atual</p>
+                <p id="totalAnoAtual" class="text-2xl font-semibold text-gray-900">R$ 0,00</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mês Atual -->
+    <div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-purple-100 text-purple-600">
+                <i class="fas fa-calendar-day text-xl"></i>
+            </div>
+            <div class="ml-4">
+                <p class="text-sm font-medium text-gray-500">Mês Atual</p>
+                <p id="totalMesAtual" class="text-2xl font-semibold text-gray-900">R$ 0,00</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ganhos Gerais -->
+    <div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-orange-100 text-orange-600">
+                <i class="fas fa-briefcase text-xl"></i>
+            </div>
+            <div class="ml-4">
+                <p class="text-sm font-medium text-gray-500">Ganhos Gerais</p>
+                <p id="totalGanhosGerais" class="text-2xl font-semibold text-gray-900">R$ 0,00</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Proventos -->
+    <div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-red-100 text-red-600">
+                <i class="fas fa-chart-line text-xl"></i>
+            </div>
+            <div class="ml-4">
+                <p class="text-sm font-medium text-gray-500">Proventos</p>
+                <p id="totalDividendos" class="text-2xl font-semibold text-gray-900">R$ 0,00</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="bg-white rounded-lg shadow-lg p-6 card-shadow mb-8">
+    <h3 class="text-lg font-semibold text-gray-900 mb-4">Filtros</h3>
+    <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div>
+            <label for="searchInput" class="block text-sm font-medium text-gray-700 mb-1">Buscar</label>
+            <input type="text" id="searchInput" placeholder="Buscar por descrição..." 
+                   class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+        </div>
+        <div>
+            <label for="monthFilter" class="block text-sm font-medium text-gray-700 mb-1">Mês</label>
+            <input type="month" id="monthFilter" 
+                   class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+        </div>
+        <div>
+            <label for="categoriaFilter" class="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
+            <select id="categoriaFilter" 
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                <option value="">Todas</option>
+            </select>
+        </div>
+        <div>
+            <label for="tipoOrigemFilter" class="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
+            <select id="tipoOrigemFilter" 
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                <option value="">Todos</option>
+                <option value="ganho_geral">Ganhos Gerais</option>
+                <option value="dividendo">Proventos</option>
+            </select>
+        </div>
+        <div class="flex items-end">
+            <button onclick="applyFilters()" class="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md transition-colors">
+                Filtrar
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Section -->
+<div class="mb-8">
+    <!-- Monthly Evolution Chart - Full Width -->
+    <div class="bg-white rounded-lg shadow-lg p-6 card-shadow mb-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Evolução Mensal</h3>
+        <div class="h-96">
+            <canvas id="monthlyChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Doughnut Charts -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Categories Chart -->
+        <div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Por Categoria</h3>
+            <div class="h-80">
+                <canvas id="categoriesChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Classes Chart -->
+        <div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Por Classe</h3>
+            <div class="h-80">
+                <canvas id="classesChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Table -->
+<div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+    <!-- Table -->
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descrição</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Valor</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Categoria</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Classe</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
+                </tr>
+            </thead>
+            <tbody id="ganhosTableBody" class="bg-white divide-y divide-gray-200">
+                <!-- Data will be populated here -->
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    <div id="pagination" class="mt-6 flex items-center justify-between">
+        <div class="flex items-center text-sm text-gray-700">
+            <span id="paginationInfo">Mostrando 0 de 0 registros</span>
+        </div>
+        <div class="flex items-center space-x-2">
+            <button id="prevPage" onclick="changePage(-1)" 
+                    class="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed">
+                Anterior
+            </button>
+            <span id="currentPageSpan" class="px-3 py-1 text-sm font-medium">Página 1</span>
+            <button id="nextPage" onclick="changePage(1)" 
+                    class="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed">
+                Próxima
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Create/Edit Modal -->
+<div id="ganhoModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div class="mt-3">
+            <h3 id="modalTitle" class="text-lg font-medium text-gray-900 mb-4">Novo Ganho</h3>
+            <form id="ganhoForm">
+                <input type="hidden" id="ganhoId">
+                
+                <div class="mb-4">
+                    <label for="dataLancamento" class="block text-sm font-medium text-gray-700 mb-1">Data*</label>
+                    <input type="date" id="dataLancamento" required
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                </div>
+
+                <div class="mb-4">
+                    <label for="descricao" class="block text-sm font-medium text-gray-700 mb-1">Descrição*</label>
+                    <input type="text" id="descricao" required
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                </div>
+
+                <div class="mb-4">
+                    <label for="valor" class="block text-sm font-medium text-gray-700 mb-1">Valor*</label>
+                    <input type="number" id="valor" step="0.01" required
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                </div>
+
+                <div class="mb-4">
+                    <label for="categoria" class="block text-sm font-medium text-gray-700 mb-1">Categoria*</label>
+                    <input type="text" id="categoria" required
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                </div>
+
+                <div class="mb-6">
+                    <label for="classe" class="block text-sm font-medium text-gray-700 mb-1">Classe*</label>
+                    <input type="text" id="classe" required
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                </div>
+
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="closeModal()" 
+                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300">
+                        Cancelar
+                    </button>
+                    <button type="submit" 
+                            class="px-4 py-2 text-sm font-medium text-white bg-blue-500 rounded-md hover:bg-blue-600">
+                        Salvar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentPage = 1;
+let totalPages = 1;
+let monthlyChart, categoriesChart, classesChart;
+
+// Register ChartDataLabels once (if loaded) to avoid multiple registrations
+if (typeof ChartDataLabels !== 'undefined') {
+    try { Chart.register(ChartDataLabels); } catch (e) { /* already registered or unsupported */ }
+}
+
+// Initialize page
+document.addEventListener('DOMContentLoaded', function() {
+    setupEventListeners();
+    // Do not auto-set month filter on load per user request
+    loadData();
+});
+
+function setupEventListeners() {
+    // Form submission
+    document.getElementById('ganhoForm').addEventListener('submit', handleFormSubmit);
+    
+    // Filter inputs - dynamic filtering
+    document.getElementById('searchInput').addEventListener('keyup', function(e) {
+        if (e.key === 'Enter') applyFilters();
+    });
+    
+    document.getElementById('monthFilter').addEventListener('change', applyFilters);
+    document.getElementById('categoriaFilter').addEventListener('change', applyFilters);
+    document.getElementById('tipoOrigemFilter').addEventListener('change', applyFilters);
+}
+
+async function loadData() {
+    try {
+        // Load metrics
+        await loadMetrics();
+        
+        // Load categories for filter
+        await loadCategories();
+        
+        // Load table data
+        await loadTableData();
+        
+        showToast('Dados carregados com sucesso!', 'success');
+    } catch (error) {
+        showToast('Erro ao carregar dados', 'error');
+        console.error('Error loading data:', error);
+    }
+}
+
+async function loadMetrics() {
+    try {
+        const filters = getFilters();
+        const queryParams = new URLSearchParams(filters);
+        
+        const response = await apiRequest(`/api/ganhos-unificados/metrics?${queryParams}`);
+        if (response.success) {
+            updateMetricsCards(response.metrics);
+            updateCharts(response.charts);
+        }
+    } catch (error) {
+        console.error('Error loading metrics:', error);
+    }
+}
+
+function updateMetricsCards(metrics) {
+    document.getElementById('totalGeral').textContent = formatCurrency(metrics.total_geral);
+    document.getElementById('totalAnoAtual').textContent = formatCurrency(metrics.total_ano_atual);
+    document.getElementById('totalMesAtual').textContent = formatCurrency(metrics.total_mes_atual);
+    document.getElementById('totalGanhosGerais').textContent = formatCurrency(metrics.total_ganhos_gerais);
+    document.getElementById('totalDividendos').textContent = formatCurrency(metrics.total_dividendos);
+}
+
+function updateCharts(charts) {
+    // If backend provided monthly_by_category, render stacked categories
+    if (charts.monthly_by_category && charts.monthly_by_category.datasets && charts.monthly_by_category.datasets.length) {
+        // If the backend also provided the simpler monthly series, prefer its months order
+        // to ensure labels align with datasets (avoid off-by-one or ordering issues).
+        if (Array.isArray(charts.monthly) && charts.monthly.length) {
+            try {
+                charts.monthly_by_category.months = charts.monthly.map(m => m.month);
+            } catch (e) { /* fallback to backend months if mapping fails */ }
+        }
+        updateMonthlyChartByCategory(charts.monthly_by_category);
+    } else {
+        updateMonthlyChart(charts.monthly);
+    }
+    updateCategoriesChart(charts.categories);
+    updateClassesChart(charts.classes);
+}
+
+// Format numbers to 'k' shorthand (e.g. 7660 -> 7.7k). Rounds to one decimal.
+function formatToK(value) {
+    const num = Number(value) || 0;
+    const abs = Math.abs(num);
+    if (abs >= 1000) {
+        // one decimal, remove .0
+        const v = (num / 1000).toFixed(1);
+        return v.replace('.0','') + 'k';
+    }
+    return String(num);
+}
+
+function updateMonthlyChart(data) {
+    const ctx = document.getElementById('monthlyChart').getContext('2d');
+
+    if (monthlyChart) {
+        monthlyChart.destroy();
+    }
+
+    // Guard for empty data
+    const safeData = Array.isArray(data) && data.length ? data : [{ month: new Date().toISOString().slice(0,7), ganho_geral: 0, dividendo: 0, total: 0 }];
+
+    const labels = safeData.map(item => {
+        // Parse YYYY-MM safely to avoid timezone shift when using Date(string)
+        const parts = String(item.month).split('-');
+        const year = parseInt(parts[0], 10);
+        const monthIndex = Math.max(0, (parseInt(parts[1], 10) - 1));
+        const date = new Date(year, monthIndex, 1);
+        return date.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
+    });
+
+    // Ensure numeric values (coerce strings to numbers)
+    const ganhosData = safeData.map(item => {
+        const v = Number(item.ganho_geral);
+        return isFinite(v) ? v : 0;
+    });
+    const dividendosData = safeData.map(item => {
+        const v = Number(item.dividendo);
+        return isFinite(v) ? v : 0;
+    });
+
+    // Compute suggested max for Y axis so bars aren't squashed
+    const totals = safeData.map((item, i) => (ganhosData[i] || 0) + (dividendosData[i] || 0));
+    const maxTotal = totals.length ? Math.max(...totals) : 0;
+    const suggestedMax = maxTotal > 0 ? Math.ceil(maxTotal * 1.1 / 100) * 100 : undefined;
+
+    // stacked bar chart
+    monthlyChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Ganhos Gerais',
+                    data: ganhosData,
+                    backgroundColor: '#F59E0B',
+                    borderColor: '#D97706',
+                    borderWidth: 1
+                },
+                {
+                    label: 'Proventos',
+                    data: dividendosData,
+                    backgroundColor: '#EF4444',
+                    borderColor: '#DC2626',
+                    borderWidth: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'top' },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const val = context.parsed.y ?? context.parsed;
+                            return context.dataset.label + ': ' + formatCurrency(val) + ' (' + formatToK(val) + ')';
+                        }
+                    }
+                },
+                // show a single total label above each stacked bar (on the top dataset)
+                datalabels: {
+                    display: function(context) {
+                        // Only display on the top dataset so there's a single total label
+                        return context.datasetIndex === (context.chart.data.datasets.length - 1);
+                    },
+                    anchor: 'end',
+                    align: 'end',
+                    formatter: function(value, context) {
+                        // sum across datasets for this dataIndex
+                        const chart = context.chart;
+                        const idx = context.dataIndex;
+                        let total = 0;
+                        for (let i = 0; i < chart.data.datasets.length; i++) {
+                            total += Number(chart.data.datasets[i].data[idx]) || 0;
+                        }
+                        return formatToK(total);
+                    },
+                    color: '#111827',
+                    font: { weight: '600', size: 11 }
+                }
+            },
+            scales: {
+                x: { stacked: true },
+                y: {
+                    stacked: true,
+                    beginAtZero: true,
+                    suggestedMax: suggestedMax,
+                    ticks: {
+                        callback: function(value) { return formatToK(value); }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function updateMonthlyChartByCategory(payload) {
+    const ctx = document.getElementById('monthlyChart').getContext('2d');
+
+    if (monthlyChart) monthlyChart.destroy();
+
+    const labels = (payload.months || []).map(m => {
+        // Parse YYYY-MM safely to avoid timezone shift
+        const parts = String(m).split('-');
+        const year = parseInt(parts[0], 10);
+        const monthIndex = Math.max(0, (parseInt(parts[1], 10) - 1));
+        const date = new Date(year, monthIndex, 1);
+        return date.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
+    });
+
+    const categories = payload.categories || [];
+
+    const colors = [
+        '#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6',
+        '#EC4899', '#F97316', '#06B6D4', '#84CC16', '#6366F1', '#111827'
+    ];
+
+    const datasets = (payload.datasets || []).map((series, idx) => ({
+        label: series.name,
+        data: series.data.map(v => Number(v) || 0),
+        backgroundColor: colors[idx % colors.length],
+        borderColor: colors[idx % colors.length],
+        borderWidth: 1
+    }));
+
+    // compute suggestedMax
+    const totals = labels.map((_, i) => datasets.reduce((s, d) => s + (d.data[i] || 0), 0));
+    const maxTotal = totals.length ? Math.max(...totals) : 0;
+    const suggestedMax = maxTotal > 0 ? Math.ceil(maxTotal * 1.1 / 100) * 100 : undefined;
+
+    monthlyChart = new Chart(ctx, {
+        type: 'bar',
+        data: { labels: labels, datasets: datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'top' },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const val = context.parsed.y ?? context.parsed;
+                            return context.dataset.label + ': ' + formatCurrency(val) + ' (' + formatToK(val) + ')';
+                        }
+                    }
+                },
+                datalabels: {
+                    display: function(context) {
+                        return context.datasetIndex === (context.chart.data.datasets.length - 1);
+                    },
+                    anchor: 'end',
+                    align: 'end',
+                    formatter: function(value, context) {
+                        const chart = context.chart;
+                        const idx = context.dataIndex;
+                        let total = 0;
+                        for (let i = 0; i < chart.data.datasets.length; i++) {
+                            total += Number(chart.data.datasets[i].data[idx]) || 0;
+                        }
+                        return formatToK(total);
+                    },
+                    color: '#111827',
+                    font: { weight: '600', size: 11 }
+                }
+            },
+            scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, suggestedMax: suggestedMax, ticks: { callback: function(value) { return formatToK(value); } } } }
+        }
+    });
+}
+
+function updateCategoriesChart(data) {
+    const ctx = document.getElementById('categoriesChart').getContext('2d');
+    
+    if (categoriesChart) {
+        categoriesChart.destroy();
+    }
+
+    const colors = [
+        '#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6',
+        '#EC4899', '#F97316', '#06B6D4', '#84CC16', '#6366F1'
+    ];
+
+    const safeCategories = Array.isArray(data) ? data : [];
+
+    // If no categories, show an empty/placeholder chart to avoid plugin runtime issues
+    if (!safeCategories.length) {
+        categoriesChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Nenhum'],
+                datasets: [{ data: [1], backgroundColor: ['#E5E7EB'], borderWidth: 0 }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, datalabels: { display: false } } }
+        });
+        return;
+    }
+
+    // Coerce values to numbers to avoid string math and plugin errors
+    const labels = safeCategories.map(item => item.name || '');
+    const values = safeCategories.map(item => {
+        const v = Number(item.value);
+        return isFinite(v) ? v : 0;
+    });
+
+    const totalSum = values.reduce((a, b) => a + b, 0) || 0;
+
+    categoriesChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: values,
+                backgroundColor: colors.slice(0, values.length),
+                borderWidth: 2,
+                borderColor: '#ffffff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 20,
+                        usePointStyle: true
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const val = Number(context.parsed) || 0;
+                            const percentage = totalSum ? ((val / totalSum) * 100).toFixed(1) : '0.0';
+                            return context.label + ': ' + formatCurrency(val) + ' (' + percentage + '%)';
+                        }
+                    }
+                },
+                datalabels: {
+                    display: function(context) {
+                        const total = context.dataset.data.reduce((a, b) => Number(a) + Number(b), 0) || 0;
+                        const perc = total ? (Number(context.parsed) / total) * 100 : 0;
+                        return perc > 5; // Only show label if > 5%
+                    },
+                    formatter: function(value, context) {
+                        return formatToK(value);
+                    },
+                    color: '#ffffff',
+                    font: {
+                        weight: 'bold',
+                        size: 12
+                    }
+                }
+            }
+        }
+    });
+}
+
+function updateClassesChart(data) {
+    const ctx = document.getElementById('classesChart').getContext('2d');
+    
+    if (classesChart) {
+        classesChart.destroy();
+    }
+
+    const colors = [
+        '#8B5CF6', '#EC4899', '#F97316', '#06B6D4', '#84CC16', 
+        '#6366F1', '#EF4444', '#F59E0B', '#10B981', '#3B82F6'
+    ];
+
+    const safeClasses = Array.isArray(data) ? data : [];
+
+    // If no classes, show an empty/placeholder chart to avoid plugin runtime issues
+    if (!safeClasses.length) {
+        classesChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Nenhum'],
+                datasets: [{ data: [1], backgroundColor: ['#E5E7EB'], borderWidth: 0 }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, datalabels: { display: false } } }
+        });
+        return;
+    }
+
+    // Coerce values to numbers to avoid string math and plugin errors
+    const labels = safeClasses.map(item => item.name || '');
+    const values = safeClasses.map(item => {
+        const v = Number(item.value);
+        return isFinite(v) ? v : 0;
+    });
+
+    const totalSum = values.reduce((a, b) => a + b, 0) || 0;
+
+    classesChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: values,
+                backgroundColor: colors.slice(0, values.length),
+                borderWidth: 2,
+                borderColor: '#ffffff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 20,
+                        usePointStyle: true
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const val = Number(context.parsed) || 0;
+                            const percentage = totalSum ? ((val / totalSum) * 100).toFixed(1) : '0.0';
+                            return context.label + ': ' + formatCurrency(val) + ' (' + percentage + '%)';
+                        }
+                    }
+                },
+                datalabels: {
+                    display: function(context) {
+                        const total = context.dataset.data.reduce((a, b) => Number(a) + Number(b), 0) || 0;
+                        const perc = total ? (Number(context.parsed) / total) * 100 : 0;
+                        return perc > 5; // Only show label if > 5%
+                    },
+                    formatter: function(value, context) {
+                        return formatToK(value);
+                    },
+                    color: '#ffffff',
+                    font: {
+                        weight: 'bold',
+                        size: 12
+                    }
+                }
+            }
+        }
+    });
+}
+
+async function loadCategories() {
+    try {
+        const response = await apiRequest('/api/ganhos-unificados/categories');
+        if (response.success) {
+            const categoriaSelect = document.getElementById('categoriaFilter');
+            categoriaSelect.innerHTML = '<option value="">Todas</option>';
+            
+            response.categories.forEach(categoria => {
+                const option = document.createElement('option');
+                option.value = categoria;
+                option.textContent = categoria;
+                categoriaSelect.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('Error loading categories:', error);
+    }
+}
+
+async function loadTableData() {
+    try {
+        const filters = getFilters();
+        const queryParams = new URLSearchParams({
+            page: currentPage,
+            per_page: 50,
+            ...filters
+        });
+
+        const response = await apiRequest(`/api/ganhos-unificados?${queryParams}`);
+        if (response.success) {
+            updateTable(response.data);
+            updatePagination(response.pagination);
+        }
+    } catch (error) {
+        console.error('Error loading table data:', error);
+    }
+}
+
+function getFilters() {
+    const filters = {};
+    
+    const search = document.getElementById('searchInput').value.trim();
+    if (search) filters.search = search;
+    
+    const month = document.getElementById('monthFilter').value;
+    if (month) filters.month = month;
+    
+    const categoria = document.getElementById('categoriaFilter').value;
+    if (categoria) filters.categoria = categoria;
+    
+    const tipoOrigem = document.getElementById('tipoOrigemFilter').value;
+    if (tipoOrigem) filters.tipo_origem = tipoOrigem;
+    
+    return filters;
+}
+
+function updateTable(data) {
+    const tbody = document.getElementById('ganhosTableBody');
+    tbody.innerHTML = '';
+
+    if (data.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" class="px-6 py-4 text-center text-gray-500">Nenhum registro encontrado</td>
+            </tr>
+        `;
+        return;
+    }
+
+    data.forEach(item => {
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-gray-50';
+        
+        const tipoLabel = item.tipo_origem === 'ganho_geral' ? 'Ganho Geral' : 'Provento';
+        const tipoClass = item.tipo_origem === 'ganho_geral' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800';
+        
+        const canEdit = item.tipo_origem === 'ganho_geral';
+        
+        row.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                ${formatDate(item.data_lancamento)}
+            </td>
+            <td class="px-6 py-4 text-sm text-gray-900">
+                ${item.descricao || '-'}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                ${formatCurrency(item.valor)}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                ${item.categoria || '-'}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                ${item.classe || '-'}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <span class="px-2 py-1 text-xs font-medium rounded-full ${tipoClass}">
+                    ${tipoLabel}
+                </span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                ${canEdit ? `
+                    <button onclick="editGanho(${item.id})" class="text-blue-600 hover:text-blue-900 mr-3">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button onclick="deleteGanho(${item.id})" class="text-red-600 hover:text-red-900">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                ` : '<span class="text-gray-400">-</span>'}
+            </td>
+        `;
+        
+        tbody.appendChild(row);
+    });
+}
+
+function updatePagination(pagination) {
+    totalPages = pagination.total_pages;
+    currentPage = pagination.page;
+    
+    document.getElementById('paginationInfo').textContent = 
+        `Mostrando ${((currentPage - 1) * pagination.per_page) + 1}-${Math.min(currentPage * pagination.per_page, pagination.total_records)} de ${pagination.total_records} registros`;
+    
+    document.getElementById('currentPageSpan').textContent = `Página ${currentPage} de ${totalPages}`;
+    
+    document.getElementById('prevPage').disabled = currentPage <= 1;
+    document.getElementById('nextPage').disabled = currentPage >= totalPages;
+}
+
+function applyFilters() {
+    currentPage = 1;
+    // Reload all dashboard components with filters
+    loadData();
+}
+
+function changePage(direction) {
+    const newPage = currentPage + direction;
+    if (newPage >= 1 && newPage <= totalPages) {
+        currentPage = newPage;
+        loadTableData();
+    }
+}
+
+function openCreateModal() {
+    document.getElementById('modalTitle').textContent = 'Novo Ganho';
+    document.getElementById('ganhoForm').reset();
+    document.getElementById('ganhoId').value = '';
+    document.getElementById('ganhoModal').classList.remove('hidden');
+}
+
+function closeModal() {
+    document.getElementById('ganhoModal').classList.add('hidden');
+}
+
+async function handleFormSubmit(e) {
+    e.preventDefault();
+    
+    const formData = {
+        dt_lcto: document.getElementById('dataLancamento').value,
+        des_lcto: document.getElementById('descricao').value,
+        vlr_lcto: document.getElementById('valor').value,
+        categoria_lcto: document.getElementById('categoria').value,
+        classe_lcto: document.getElementById('classe').value
+    };
+    
+    const ganhoId = document.getElementById('ganhoId').value;
+    
+    try {
+        if (ganhoId) {
+            // Update existing
+            await apiRequest(`/api/ganhos/${ganhoId}`, 'PUT', formData);
+            showToast('Ganho atualizado com sucesso!', 'success');
+        } else {
+            // Create new
+            await apiRequest('/api/ganhos', 'POST', formData);
+            showToast('Ganho criado com sucesso!', 'success');
+        }
+        
+        closeModal();
+        loadData();
+    } catch (error) {
+        showToast('Erro ao salvar ganho', 'error');
+        console.error('Error saving ganho:', error);
+    }
+}
+
+async function editGanho(id) {
+    try {
+        // Get ganho data from the table (since we don't have a specific API endpoint for single ganho)
+        // We'll need to implement this or get from current table data
+        showToast('Funcionalidade de edição em desenvolvimento', 'info');
+    } catch (error) {
+        showToast('Erro ao carregar dados do ganho', 'error');
+        console.error('Error loading ganho:', error);
+    }
+}
+
+async function deleteGanho(id) {
+    if (!confirm('Tem certeza que deseja excluir este ganho?')) {
+        return;
+    }
+    
+    try {
+        await apiRequest(`/api/ganhos/${id}`, 'DELETE');
+        showToast('Ganho excluído com sucesso!', 'success');
+        loadData();
+    } catch (error) {
+        showToast('Erro ao excluir ganho', 'error');
+        console.error('Error deleting ganho:', error);
+    }
+}
+
+function formatDate(dateString) {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('pt-BR');
+}
+</script>
+{% endblock %}

@@ -42,6 +42,25 @@
             overflow-x: auto;
             display: block;
         }
+        /* Força quebras e word-wrap nas células para evitar overflow em telas pequenas */
+        table { border-collapse: collapse; }
+        table th, table td {
+            white-space: normal !important;
+            word-break: break-word !important;
+            overflow-wrap: anywhere;
+        }
+        /* Ajustes gerais no mobile para reduzir espaçamentos e acelerar o layout */
+        @media (max-width: 640px) {
+            .card-shadow { padding: 0.75rem !important; }
+            .max-w-7xl { padding-left: 0.5rem; padding-right: 0.5rem; }
+            .text-3xl { font-size: 1.5rem; }
+            .text-2xl { font-size: 1.25rem; }
+            nav h1 { font-size: 1rem; }
+            /* Make Chart containers adapt and not force large heights */
+            .relative.h-80 { height: 18rem; }
+            .relative.h-64 { height: 14rem; }
+            .h-16 { height: 3.5rem; }
+        }
         /* Ajuste para navegação mobile */
         @media (max-width: 640px) {
             nav .desktop-menu { display: none !important; }
@@ -73,7 +92,7 @@
                     <a href="/contributions" class="hover:text-gray-300 transition-colors {% if request.endpoint == 'pages.contributions' %}text-yellow-300{% endif %}"><i class="fas fa-plus-circle mr-1"></i> Aportes</a>
                     <a href="/categories" class="hover:text-gray-300 transition-colors {% if request.endpoint == 'pages.categories' %}text-yellow-300{% endif %}"><i class="fas fa-tags mr-1"></i> Categorias</a>
                     <a href="/data-update" class="hover:text-gray-300 transition-colors {% if request.endpoint == 'pages.data_update' %}text-yellow-300{% endif %}"><i class="fas fa-sync-alt mr-1"></i> Atualizar</a>
-                    <a href="/freelas" class="hover:text-gray-300 transition-colors {% if request.endpoint == 'pages.freelas' %}text-yellow-300{% endif %}"><i class="fas fa-laptop-code mr-1"></i> Freelas</a>
+                    <a href="/ganhos-gerais" class="hover:text-gray-300 transition-colors {% if request.endpoint == 'pages.ganhos_gerais' %}text-yellow-300{% endif %}"><i class="fas fa-dollar-sign mr-1"></i> Ganhos Gerais</a>
                 </div>
                 <!-- Menu Mobile (Hamburguer) -->
                 <div class="mobile-menu flex items-center" style="display:none;">
@@ -95,7 +114,7 @@
                 <a href="/contributions" class="py-2 border-b border-gray-200">Aportes</a>
                 <a href="/categories" class="py-2 border-b border-gray-200">Categorias</a>
                 <a href="/data-update" class="py-2">Atualizar</a>
-                <a href="/freelas" class="py-2">Freelas</a>
+                <a href="/ganhos-gerais" class="py-2">Ganhos Gerais</a>
             </div>
         </div>
     </nav>
@@ -189,6 +208,16 @@
                 style: 'currency',
                 currency: 'BRL'
             }).format(value);
+        }
+
+        // Short currency formatter (e.g. R$ 13k)
+        function formatCurrencyShort(value) {
+            const abs = Math.abs(Number(value) || 0);
+            if (abs >= 1000) {
+                const short = Math.round((value) / 1000);
+                return `R$ ${short}k`;
+            }
+            return formatCurrency(value);
         }
 
         // Format percentage
