@@ -53,4 +53,9 @@ def simulador_renda_fixa():
     """Simulador de Renda Fixa page"""
     return render_template('simulador_renda_fixa.html')
 
+@page_bp.route('/investimentos-eua')
+def investimentos_eua():
+    """Cadastro de Investimentos EUA com LLM page"""
+    return render_template('investimentos_eua.html')
+
 # CRUD de ganhos é feito via /api/ganhos (padrão das demais páginas)

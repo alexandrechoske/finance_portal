@@ -10,9 +10,22 @@ import threading
 import traceback
 from functools import wraps
 import requests
+import tempfile
+import uuid
+from werkzeug.utils import secure_filename
+import json
 
 # Initialize logger
 logger = logging.getLogger(__name__)
+
+# LLM and PDF imports
+try:
+    import PyPDF2
+    import google.generativeai as genai
+    HAVE_LLM_SUPPORT = True
+except ImportError:
+    HAVE_LLM_SUPPORT = False
+    logger.warning("LLM support not available - install PyPDF2 and google-generativeai for full functionality")
 
 # Cache simples para otimizar performance
 _cache = {}
@@ -2022,6 +2035,492 @@ def simulate_renda_fixa_investment():
     except Exception as e:
         logger.error(f"Error simulating renda fixa investment: {e}")
         return jsonify({'error': str(e)}), 500
+
+# -----------------------------
+# Investimentos EUA com LLM
+# -----------------------------
+@api_bp.route('/investimentos-eua/analyze', methods=['POST'])
+def analyze_usa_investments():
+    """Analyze PDF from USA broker using LLM to extract transactions"""
+    try:
+        # Verificar se arquivo foi enviado
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'error': 'Arquivo não enviado'}), 400
+        
+        file = request.files['file']
+        if file.filename == '' or not file.filename.lower().endswith('.pdf'):
+            return jsonify({'success': False, 'error': 'Por favor, envie um arquivo PDF'}), 400
+        
+        # Salvar arquivo temporariamente
+        filename = secure_filename(file.filename)
+        temp_id = str(uuid.uuid4())[:8]
+        temp_filename = f"{temp_id}_{filename}"
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
+            file.save(temp_file.name)
+            temp_path = temp_file.name
+        
+        # Verificar se tem suporte a LLM
+        if not HAVE_LLM_SUPPORT:
+            # Usar dados simulados se não houver suporte a LLM
+            mock_transactions = [
+                {
+                    'date': '2025-01-15',
+                    'asset': 'AAPL',
+                    'qty': 10.5,
+                    'price': 150.25,
+                    'total': 1577.63,
+                    'type': 'BUY'
+                },
+                {
+                    'date': '2025-01-16', 
+                    'asset': 'GOOGL',
+                    'qty': 5.0,
+                    'price': 2750.80,
+                    'total': 13754.00,
+                    'type': 'BUY'
+                }
+            ]
+            
+            return jsonify({
+                'success': True,
+                'file': filename,
+                'transactions': mock_transactions,
+                'count': len(mock_transactions),
+                'note': 'Dados simulados - Instale PyPDF2 e google-generativeai para análise real'
+            })
+        
+        # Extrair texto do PDF
+        pdf_text = ""
+        try:
+            if HAVE_LLM_SUPPORT:
+                with open(temp_path, 'rb') as pdf_file:
+                    pdf_reader = PyPDF2.PdfReader(pdf_file)
+                    for page in pdf_reader.pages:
+                        pdf_text += page.extract_text() + "\n"
+                logger.info(f"Extracted {len(pdf_text)} characters from PDF")
+            else:
+                logger.error("LLM support not available - missing dependencies")
+                return jsonify({'success': False, 'error': 'Dependências PyPDF2 e google-generativeai não estão instaladas'}), 400
+        except Exception as pdf_error:
+            logger.error(f"Error reading PDF: {pdf_error}")
+            return jsonify({'success': False, 'error': 'Erro ao ler o arquivo PDF'}), 400
+        
+        # Configurar LLM (Gemini)
+        try:
+            from config.configs_supaa import GOOGLE_GEMINI_API_KEY
+            
+            # Buscar API key das configurações
+            api_key = GOOGLE_GEMINI_API_KEY
+            if not api_key:
+                logger.warning("GOOGLE_GEMINI_API_KEY not configured")
+                # Usar dados simulados se não houver API key
+                mock_transactions = [
+                    {
+                        'date': '2025-01-15',
+                        'asset': 'AAPL',
+                        'qty': 10.5,
+                        'price': 150.25,
+                        'total': 1577.63,
+                        'type': 'BUY'
+                    },
+                    {
+                        'date': '2025-01-16', 
+                        'asset': 'GOOGL',
+                        'qty': 5.0,
+                        'price': 2750.80,
+                        'total': 13754.00,
+                        'type': 'BUY'
+                    }
+                ]
+                
+                return jsonify({
+                    'success': True,
+                    'file': filename,
+                    'transactions': mock_transactions,
+                    'count': len(mock_transactions),
+                    'note': 'Dados simulados - Configure GOOGLE_GEMINI_API_KEY no arquivo .env para análise real'
+                })
+            
+            # Configurar Gemini
+            genai.configure(api_key=api_key)
+            logger.info("Gemini API configured successfully")
+            
+            # Prompt especializado para extrair transações de corretoras americanas
+            prompt = f"""
+Você é um especialista em análise de extratos financeiros de corretoras americanas. 
+
+Analise o seguinte extrato e extraia TODAS as transações de compra e venda de ações, ETFs ou outros ativos.
+
+Para cada transação encontrada, você deve extrair:
+- Data da transação (formato YYYY-MM-DD)
+- Símbolo do ativo (ticker como AAPL, GOOGL, SPY, etc.)
+- Quantidade de ações/cotas
+- Preço unitário em USD
+- Valor total da operação em USD
+- Tipo de operação (BUY ou SELL)
+
+IMPORTANTE:
+1. Ignore dividendos, juros, taxas e outras operações que não sejam compra/venda de ativos
+2. Retorne APENAS um array JSON válido, sem texto adicional
+3. Use números decimais para qty, price e total
+4. Use o formato de data YYYY-MM-DD
+5. Se encontrar datas em outros formatos (MM/DD/YYYY, DD/MM/YYYY), converta para YYYY-MM-DD
+6. Para símbolos de ativos, use apenas letras maiúsculas sem espaços
+
+Exemplo do formato esperado:
+[
+  {{
+    "date": "2025-01-15",
+    "asset": "AAPL",
+    "qty": 10.5,
+    "price": 150.25,
+    "total": 1577.63,
+    "type": "BUY"
+  }},
+  {{
+    "date": "2025-01-16",
+    "asset": "GOOGL", 
+    "qty": 5.0,
+    "price": 2750.80,
+    "total": 13754.00,
+    "type": "SELL"
+  }}
+]
+
+Texto do extrato para análise:
+{pdf_text[:12000]}
+"""
+            
+            # Fazer requisição para o Gemini
+            model = genai.GenerativeModel(os.getenv('GEMINI_MODEL'))
+            logger.info("Sending request to Gemini API...")
+            
+            response = model.generate_content(prompt)
+            logger.info("Received response from Gemini API")
+            
+            # Tentar extrair JSON da resposta
+            response_text = response.text.strip()
+            logger.info(f"Raw Gemini response: {response_text[:500]}...")
+            
+            # Tentar encontrar JSON na resposta
+            json_start = response_text.find('[')
+            json_end = response_text.rfind(']') + 1
+            
+            if json_start >= 0 and json_end > json_start:
+                json_text = response_text[json_start:json_end]
+                logger.info(f"Extracted JSON: {json_text[:300]}...")
+                
+                try:
+                    transactions = json.loads(json_text)
+                    logger.info(f"Successfully parsed {len(transactions)} transactions")
+                    
+                    # Validar e formatar transações
+                    formatted_transactions = []
+                    for i, tx in enumerate(transactions):
+                        try:
+                            if all(key in tx for key in ['date', 'asset', 'qty', 'price', 'total']):
+                                formatted_tx = {
+                                    'date': str(tx['date']),
+                                    'asset': str(tx['asset']).upper().strip(),
+                                    'qty': float(tx['qty']),
+                                    'price': float(tx['price']),
+                                    'total': float(tx['total']),
+                                    'type': str(tx.get('type', 'BUY')).upper()
+                                }
+                                formatted_transactions.append(formatted_tx)
+                                logger.info(f"Transaction {i+1}: {formatted_tx['asset']} - {formatted_tx['qty']} @ ${formatted_tx['price']}")
+                            else:
+                                logger.warning(f"Transaction {i+1} missing required fields: {tx}")
+                        except (ValueError, TypeError) as e:
+                            logger.error(f"Error formatting transaction {i+1}: {e} - {tx}")
+                    
+                    if formatted_transactions:
+                        logger.info(f"Successfully formatted {len(formatted_transactions)} transactions")
+                        return jsonify({
+                            'success': True,
+                            'file': filename,
+                            'transactions': formatted_transactions,
+                            'count': len(formatted_transactions),
+                            'note': f'Análise realizada com Gemini AI - {len(formatted_transactions)} transações extraídas'
+                        })
+                    else:
+                        logger.warning("No valid transactions found after formatting")
+                        
+                except json.JSONDecodeError as e:
+                    logger.error(f"JSON decode error: {e}")
+                    logger.error(f"Invalid JSON: {json_text[:500]}")
+            else:
+                logger.warning("No JSON array found in Gemini response")
+                logger.warning(f"Response text: {response_text[:1000]}")
+            
+            # Se chegou até aqui, não conseguiu extrair dados válidos
+            logger.warning("Could not extract valid transactions from Gemini response")
+            return jsonify({
+                'success': True,
+                'file': filename,
+                'transactions': [],
+                'count': 0,
+                'note': 'Gemini não conseguiu extrair transações válidas do documento. Verifique se o PDF contém transações de compra/venda de ativos.',
+                'raw_response': response_text[:1000] if response_text else 'Nenhuma resposta do Gemini'
+            })
+                
+        except Exception as llm_error:
+            logger.error(f"LLM error: {llm_error}")
+            logger.error(f"LLM error traceback: {traceback.format_exc()}")
+            return jsonify({
+                'success': False, 
+                'error': f'Erro na análise com IA: {str(llm_error)}'
+            }), 500
+        
+        finally:
+            # Limpar arquivo temporário
+            try:
+                os.unlink(temp_path)
+            except:
+                pass
+        
+    except Exception as e:
+        logger.error(f"Error analyzing USA investments PDF: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@api_bp.route('/investimentos-eua/test-direct', methods=['POST'])
+def test_direct_myprofit():
+    """Test direct MyProfit API call like Postman"""
+    try:
+        import requests
+        
+        # Cookies exatos do Postman que funcionam
+        working_cookies = 'AdoptVisitorId=AwFmHYA4GMDYEYC0kBG8BMiQgJycuLAMxYCGAJgKylFHqXw6lA==; RememberMe=0; _ad_token=f9zednjr5uk4bql52uonne; myProfit.Auth=bXlwcm9maXR3ZWI6TSFQNDBmMXQjMzg=; ASP.NET_SessionId=v5otwjxytuwdu5uh0a3nuw13; isV2=false; couponMenu=0; vestingMenu=0; _gcl_au=1.1.378068258.1754506028; _cfuvid=q.zo17i.HGYb1fsD0.7xBs950tef.bMOJdlRF1xuCac-1755034314939-0.0.1.1-604800000; _gid=GA1.2.688027865.1755399809; AdoptConsent=N4Ig7gpgRgzglgFwgSQCIgFwgOwAZt64AsRAtAGzkBMVpRUUAJqQIaMQDMpHAxgKw8AjAE4WAMzGDGfEABoQANzjwEAewBOyRphDF8ADh7lBpfVEG0Sw2vuzkuRNnxYcOVPiJZyQqgA4JkADsAFRYAcxhMAG0QclVkAFEwgAsqAGEAKwBxb0YWckYRYRMWKGs6Ij5sUmseYVJBbBYLKAhcHipsCG8ATSyAJQBlAAVUAFd1MYTvAEcYVDEAWVIAOQQAfQBBb2EPZtw+clIeDiJ9OiEIVkZyK/0WFgOOMSr9ImxvfWkxDkEoHlInGEZDOgj4rB4UFwpD4fBoBGwfAgwjq3ih+nsEHI1X4uHqlVKpiIghYpDxED4NygJA4EA+AF15H4EAB5MYIUIRaKMkA8VSBGAQQIBbRYADSfGC6hWADVvBAFEKOQBPXzdLAIfpigCK2EYOu8fIFSplEHU8H5mEE8jGvjySEYmwQOiouHcZPOjWCuA4GB9GCowgAdMJcOQAFogAC+QA==; __cf_bm=KR5AzUnSutFCoL6parabSr3mezj.ux69WDw88uRldhs-1755442852-1.0.1.1-BtOdGqsR_yKnvMf5EzKWs6dTvXvdIqd5IOlsl21b3fOBevMNF0Cov63FVTQCAmvMYdS4B3wJBLpnHqyHSt3TW9gFOBevMNF0Cov63FVTQCAmvMYdS4B3wJBLpnHqyHSt3TW9gFOBYm_Z3K1VeW81NQCMw; TokenMaster=6KnPqsW5svk0GHO282FmyjHVlXkFdwi.40068; Token=6KnPqsW5svk0GHO282FmyjHVlXkFdwi.40068; _clck=e33jjs%7C2%7Cfyj%7C0%7C1860; lastReminderNiver5=2025-08-17; _ga=GA1.1.829614872.1738464269; _ga_YVHQTHNQ4Y=GS2.1.s1755442853$o198$g1$t1755443341$j59$l0$h0; _clsk=115tmj6%7C1755443341744%7C3%7C1%7Cn.clarity.ms%2Fcollect; _ga_BLMTDM6H5P=GS2.2.s1755442853$o170$g1$t1755443341$j60$l0$h0; __cf_bm=zfpcrQwz_64HPpXjMSlTt8Kmz66YZJRfp0oDPn2lJrk-1755446850-1.0.1.1-xivvCjBRbJJzIck1Pth0CNFw_tNRCa2B9wt4VkZ0FAK8UxUExvAJooTeFGh5xNZnzQwXM_3X0qjwX8yjiGe0y1nqGTiqV4.rzBmaJjAvnj0; _cfuvid=JjGJ4nT6A1rG0PzsvCz5P569zZTJn9UyrOo.LRGvmZE-1755446850791-0.0.1.1-604800000'
+        
+        headers = {
+            'Cookie': working_cookies
+        }
+        
+        # Form data exato do Postman
+        form_data = {
+            'action': 'new',
+            'category': 'StockExchange',
+            'type': 'ETF_USA',
+            'typeText': 'ETF USA',
+            'operation': 'ManualBuy',
+            'exchange': 'Inter USA',
+            'date': '2025-08-17',
+            'time': '',
+            'typetax': 'null',
+            'issuer': '',
+            'index': 'null',
+            'duedate': '',
+            'tax': '',
+            'qty': '0.16611894',
+            'qtyFund': '',
+            'price': '47.165',
+            'total': '7.86',
+            'docid': '0',
+            'previoustotal': '0',
+            'proventType': 'RENDIMENTO',
+            'asset': 'VNQI',
+            'assetBase': ''
+        }
+        
+        logger.info("Making direct test call to MyProfit API exactly like Postman...")
+        logger.info(f"Using cookies: {working_cookies[:100]}...")
+        
+        response = requests.post(
+            'https://myprofitweb.com/API/NewAsset',
+            headers=headers,
+            data=form_data,
+            timeout=30,
+            allow_redirects=False
+        )
+        
+        logger.info(f"Response status: {response.status_code}")
+        logger.info(f"Response text: {response.text[:500]}...")
+        
+        return jsonify({
+            'success': True,
+            'status_code': response.status_code,
+            'response_text': response.text[:1000],
+            'headers_sent': dict(headers),
+            'form_data_sent': form_data
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in direct test: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+@api_bp.route('/investimentos-eua/test-auth', methods=['GET', 'POST'])
+def test_myprofit_auth():
+    """Test MyProfit authentication status"""
+    try:
+        import requests
+        import os
+        
+        # Cookies que funcionam no Postman
+        working_cookies = 'AdoptVisitorId=AwFmHYA4GMDYEYC0kBG8BMiQgJycuLAMxYCGAJgKylFHqXw6lA==; RememberMe=0; _ad_token=f9zednjr5uk4bql52uonne; myProfit.Auth=bXlwcm9maXR3ZWI6TSFQNDBmMXQjMzg=; ASP.NET_SessionId=v5otwjxytuwdu5uh0a3nuw13; isV2=false; couponMenu=0; vestingMenu=0; _gcl_au=1.1.378068258.1754506028; _cfuvid=q.zo17i.HGYb1fsD0.7xBs950tef.bMOJdlRF1xuCac-1755034314939-0.0.1.1-604800000; _gid=GA1.2.688027865.1755399809; AdoptConsent=N4Ig7gpgRgzglgFwgSQCIgFwgOwAZt64AsRAtAGzkBMVpRUUAJqQIaMQDMpHAxgKw8AjAE4WAMzGDGfEABoQANzjwEAewBOyRphDF8ADh7lBpfVEG0Sw2vuzkuRNnxYcOVPiJZyQqgA4JkADsAFRYAcxhMAG0QclVkAFEwgAsqAGEAKwBxb0YWckYRYRMWKGs6Ij5sUmseYVJBbBYLKAhcHipsCG8ATSyAJQBlAAVUAFd1MYTvAEcYVDEAWVIAOQQAfQBBb2EPZtw+clIeDiJ9OiEIVkZyK/0WFgOOMSr9ImxvfWkxDkEoHlInGEZDOgj4rB4UFwpD4fBoBGwfAgwjq3ih+nsEHI1X4uHqlVKpiIghYpDxED4NygJA4EA+AF15H4EAB5MYIUIRaKMkA8VSBGAQQIBbRYADSfGC6hWADVvBAFEKOQBPXzdLAIfpigCK2EYOu8fIFSplEHU8H5mEE8jGvjySEYmwQOiouHcZPOjWCuA4GB9GCowgAdMJcOQAFogAC+QA==; __cf_bm=KR5AzUnSutFCoL6parabSr3mezj.ux69WDw88uRldhs-1755442852-1.0.1.1-BtOdGqsR_yKnvMf5EzKWs6dTvXvdIqd5IOlsl21b3fOBevMNF0Cov63FVTQCAmvMYdS4B3wJBLpnHqyHSt3TW9gFOBYm_Z3K1VeW81NQCMw; TokenMaster=6KnPqsW5svk0GHO282FmyjHVlXkFdwi.40068; Token=6KnPqsW5svk0GHO282FmyjHVlXkFdwi.40068; _clck=e33jjs%7C2%7Cfyj%7C0%7C1860; lastReminderNiver5=2025-08-17; _ga=GA1.1.829614872.1738464269; _ga_YVHQTHNQ4Y=GS2.1.s1755442853$o198$g1$t1755443341$j59$l0$h0; _clsk=115tmj6%7C1755443341744%7C3%7C1%7Cn.clarity.ms%2Fcollect; _ga_BLMTDM6H5P=GS2.2.s1755442853$o170$g1$t1755443341$j60$l0$h0; __cf_bm=zfpcrQwz_64HPpXjMSlTt8Kmz66YZJRfp0oDPn2lJrk-1755446850-1.0.1.1-xivvCjBRbJJzIck1Pth0CNFw_tNRCa2B9wt4VkZ0FAK8UxUExvAJooTeFGh5xNZnzQwXM_3X0qjwX8yjiGe0y1nqGTiqV4.rzBmaJjAvnj0; _cfuvid=JjGJ4nT6A1rG0PzsvCz5P569zZTJn9UyrOo.LRGvmZE-1755446850791-0.0.1.1-604800000'
+        
+        # Se for POST, usar cookies do body, senão usar os cookies que funcionam
+        if request.method == 'POST':
+            data = request.get_json()
+            custom_cookies = data.get('cookies', '') if data else ''
+            if custom_cookies.strip():
+                myprofit_cookies = custom_cookies.strip()
+                logger.info("Testing custom cookies from request")
+            else:
+                myprofit_cookies = working_cookies
+                logger.info("Testing working Postman cookies")
+        else:
+            myprofit_cookies = working_cookies
+            logger.info("Testing working Postman cookies (GET request)")
+        
+        headers = {
+            'Cookie': myprofit_cookies
+        }
+        
+        # Testa acesso a uma página que requer autenticação
+        response = requests.get(
+            'https://myprofitweb.com/Asset/New',
+            headers=headers,
+            timeout=10,
+            allow_redirects=False
+        )
+        
+        is_authenticated = response.status_code == 200 and 'login' not in response.text.lower()
+        
+        return jsonify({
+            'success': True,
+            'authenticated': is_authenticated,
+            'status_code': response.status_code,
+            'cookies_configured': True,
+            'message': 'Autenticado' if is_authenticated else 'Não autenticado - cookies expirados'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+@api_bp.route('/investimentos-eua/insert', methods=['POST'])
+def insert_usa_investments():
+    """Insert USA investment transactions into MyProfit system"""
+    try:
+        data = request.get_json()
+        transactions = data.get('transactions', [])
+        custom_cookies = data.get('cookies', '')
+        
+        if not transactions:
+            return jsonify({'success': False, 'error': 'Nenhuma transação fornecida'}), 400
+        
+        import requests
+        import os
+        
+        # Use os cookies exatos do Postman que funcionam
+        working_cookies = 'AdoptVisitorId=AwFmHYA4GMDYEYC0kBG8BMiQgJycuLAMxYCGAJgKylFHqXw6lA==; RememberMe=0; _ad_token=f9zednjr5uk4bql52uonne; myProfit.Auth=bXlwcm9maXR3ZWI6TSFQNDBmMXQjMzg=; ASP.NET_SessionId=v5otwjxytuwdu5uh0a3nuw13; isV2=false; couponMenu=0; vestingMenu=0; _gcl_au=1.1.378068258.1754506028; _cfuvid=q.zo17i.HGYb1fsD0.7xBs950tef.bMOJdlRF1xuCac-1755034314939-0.0.1.1-604800000; _gid=GA1.2.688027865.1755399809; AdoptConsent=N4Ig7gpgRgzglgFwgSQCIgFwgOwAZt64AsRAtAGzkBMVpRUUAJqQIaMQDMpHAxgKw8AjAE4WAMzGDGfEABoQANzjwEAewBOyRphDF8ADh7lBpfVEG0Sw2vuzkuRNnxYcOVPiJZyQqgA4JkADsAFRYAcxhMAG0QclVkAFEwgAsqAGEAKwBxb0YWckYRYRMWKGs6Ij5sUmseYVJBbBYLKAhcHipsCG8ATSyAJQBlAAVUAFd1MYTvAEcYVDEAWVIAOQQAfQBBb2EPZtw+clIeDiJ9OiEIVkZyK/0WFgOOMSr9ImxvfWkxDkEoHlInGEZDOgj4rB4UFwpD4fBoBGwfAgwjq3ih+nsEHI1X4uHqlVKpiIghYpDxED4NygJA4EA+AF15H4EAB5MYIUIRaKMkA8VSBGAQQIBbRYADSfGC6hWADVvBAFEKOQBPXzdLAIfpigCK2EYOu8fIFSplEHU8H5mEE8jGvjySEYmwQOiouHcZPOjWCuA4GB9GCowgAdMJcOQAFogAC+QA==; __cf_bm=KR5AzUnSutFCoL6parabSr3mezj.ux69WDw88uRldhs-1755442852-1.0.1.1-BtOdGqsR_yKnvMf5EzKWs6dTvXvdIqd5IOlsl21b3fOBevMNF0Cov63FVTQCAmvMYdS4B3wJBLpnHqyHSt3TW9gFOBYm_Z3K1VeW81NQCMw; TokenMaster=6KnPqsW5svk0GHO282FmyjHVlXkFdwi.40068; Token=6KnPqsW5svk0GHO282FmyjHVlXkFdwi.40068; _clck=e33jjs%7C2%7Cfyj%7C0%7C1860; lastReminderNiver5=2025-08-17; _ga=GA1.1.829614872.1738464269; _ga_YVHQTHNQ4Y=GS2.1.s1755442853$o198$g1$t1755443341$j59$l0$h0; _clsk=115tmj6%7C1755443341744%7C3%7C1%7Cn.clarity.ms%2Fcollect; _ga_BLMTDM6H5P=GS2.2.s1755442853$o170$g1$t1755443341$j60$l0$h0; __cf_bm=zfpcrQwz_64HPpXjMSlTt8Kmz66YZJRfp0oDPn2lJrk-1755446850-1.0.1.1-xivvCjBRbJJzIck1Pth0CNFw_tNRCa2B9wt4VkZ0FAK8UxUExvAJooTeFGh5xNZnzQwXM_3X0qjwX8yjiGe0y1nqGTiqV4.rzBmaJjAvnj0; _cfuvid=JjGJ4nT6A1rG0PzsvCz5P569zZTJn9UyrOo.LRGvmZE-1755446850791-0.0.1.1-604800000'
+        
+        # Use cookies customizados se fornecidos, senão usar os cookies que funcionam no Postman
+        if custom_cookies.strip():
+            myprofit_cookies = custom_cookies.strip()
+            logger.info("Using custom cookies from request")
+        else:
+            myprofit_cookies = working_cookies
+            logger.info("Using working cookies from Postman")
+        
+        # Headers minimalistas como no curl
+        headers = {
+            'Cookie': myprofit_cookies
+        }
+        
+        success_count = 0
+        errors = []
+        inserted_transactions = []
+        
+        for i, transaction in enumerate(transactions):
+            try:
+                # Preparar dados conforme formato exato do Postman (form-data)
+                form_data = {
+                    'action': 'new',
+                    'category': 'StockExchange',
+                    'type': 'ETF_USA',
+                    'typeText': 'ETF USA',
+                    'operation': 'ManualBuy' if transaction.get('type', 'BUY') == 'BUY' else 'ManualSell',
+                    'exchange': 'Inter USA',
+                    'date': transaction.get('date', ''),
+                    'time': '',
+                    'typetax': 'null',
+                    'issuer': '',
+                    'index': 'null',
+                    'duedate': '',
+                    'tax': '',
+                    'qty': str(transaction.get('qty', 0)),
+                    'qtyFund': '',
+                    'price': str(transaction.get('price', 0)),
+                    'total': str(transaction.get('total', 0)),
+                    'docid': '0',
+                    'previoustotal': '0',
+                    'proventType': 'RENDIMENTO',
+                    'asset': transaction.get('asset', ''),
+                    'assetBase': ''
+                }
+                
+                logger.info(f"Inserting transaction {i+1}/{len(transactions)}: {transaction['asset']} - {transaction['qty']} @ ${transaction['price']}")
+                logger.info(f"Using cookies: {myprofit_cookies[:100]}...")
+                
+                # Fazer requisição real para MyProfit usando form-data como no Postman
+                response = requests.post(
+                    'https://myprofitweb.com/API/NewAsset',
+                    headers=headers,
+                    data=form_data,  # Usar data= para form-data, não json=
+                    timeout=30,
+                    allow_redirects=False  # Não seguir redirects para detectar problemas de auth
+                )
+                
+                logger.info(f"MyProfit response status: {response.status_code}")
+                logger.info(f"MyProfit response text: {response.text[:200]}...")
+                
+                if response.status_code == 200:
+                    success_count += 1
+                    inserted_transactions.append(transaction)
+                    logger.info(f"Successfully inserted transaction {i+1}: {transaction['asset']}")
+                elif response.status_code == 403:
+                    error_msg = f"Erro de autenticação ao inserir {transaction.get('asset', 'N/A')}: Cookies expirados. Atualize MYPROFIT_API_TOKEN no arquivo .env"
+                    errors.append(error_msg)
+                    logger.error(error_msg)
+                    # Para o processo em caso de 403 pois todos vão falhar
+                    break
+                else:
+                    error_msg = f"Erro ao inserir {transaction.get('asset', 'N/A')}: HTTP {response.status_code} - {response.text[:100]}"
+                    errors.append(error_msg)
+                    logger.error(error_msg)
+                
+                # Adicionar delay para não sobrecarregar a API
+                time.sleep(0.5)
+                
+            except requests.exceptions.RequestException as e:
+                error_msg = f"Erro de requisição ao inserir {transaction.get('asset', 'N/A')}: {str(e)}"
+                errors.append(error_msg)
+                logger.error(error_msg)
+            except Exception as e:
+                error_msg = f"Erro ao inserir {transaction.get('asset', 'N/A')}: {str(e)}"
+                errors.append(error_msg)
+                logger.error(error_msg)
+        
+        return jsonify({
+            'success': True,
+            'inserted': success_count,
+            'total': len(transactions),
+            'errors': errors,
+            'inserted_transactions': inserted_transactions,
+            'note': f'Inserção real no MyProfit - {success_count}/{len(transactions)} transações inseridas com sucesso',
+            'auth_method': 'custom_cookies' if custom_cookies.strip() else 'env_cookies'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error inserting USA investments: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
     """Get performance data by aggregation type including dividends"""
     try:
         aggregation_type = request.args.get('type', 'asset')

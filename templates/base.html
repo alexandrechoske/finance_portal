@@ -85,17 +85,80 @@
                     <h1 class="text-xl font-bold">Meu Patrimônio</h1>
                 </div>
                 <!-- Menu Desktop -->
-                <div class="desktop-menu flex items-center space-x-4">
-                    <a href="/" class="hover:text-gray-300 transition-colors {% if request.endpoint == 'pages.dashboard' %}text-yellow-300{% endif %}"><i class="fas fa-home mr-1"></i> Dashboard</a>
-                    <a href="/portfolio" class="hover:text-gray-300 transition-colors {% if request.endpoint == 'pages.portfolio' %}text-yellow-300{% endif %}"><i class="fas fa-briefcase mr-1"></i> Carteira</a>
-                    <a href="/evolution" class="hover:text-gray-300 transition-colors {% if request.endpoint == 'pages.evolution' %}text-yellow-300{% endif %}"><i class="fas fa-chart-area mr-1"></i> Evolução</a>
-                    <a href="/rentabilidade" class="hover:text-gray-300 transition-colors {% if request.endpoint == 'pages.rentabilidade' %}text-yellow-300{% endif %}"><i class="fas fa-percentage mr-1"></i> Rentabilidade</a>
-                    <a href="/dividends" class="hover:text-gray-300 transition-colors {% if request.endpoint == 'pages.dividends' %}text-yellow-300{% endif %}"><i class="fas fa-coins mr-1"></i> Proventos</a>
-                    <a href="/contributions" class="hover:text-gray-300 transition-colors {% if request.endpoint == 'pages.contributions' %}text-yellow-300{% endif %}"><i class="fas fa-plus-circle mr-1"></i> Aportes</a>
-                    <a href="/categories" class="hover:text-gray-300 transition-colors {% if request.endpoint == 'pages.categories' %}text-yellow-300{% endif %}"><i class="fas fa-tags mr-1"></i> Categorias</a>
-                    <a href="/data-update" class="hover:text-gray-300 transition-colors {% if request.endpoint == 'pages.data_update' %}text-yellow-300{% endif %}"><i class="fas fa-sync-alt mr-1"></i> Atualizar</a>
-                    <a href="/ganhos-gerais" class="hover:text-gray-300 transition-colors {% if request.endpoint == 'pages.ganhos_gerais' %}text-yellow-300{% endif %}"><i class="fas fa-dollar-sign mr-1"></i> Ganhos Gerais</a>
-                    <a href="/simulador-renda-fixa" class="hover:text-gray-300 transition-colors {% if request.endpoint == 'pages.simulador_renda_fixa' %}text-yellow-300{% endif %}"><i class="fas fa-calculator mr-1"></i> Simulador RF</a>
+                <div class="desktop-menu flex items-center space-x-6">
+                    <a href="/" class="hover:text-gray-300 transition-colors {% if request.endpoint == 'pages.dashboard' %}text-yellow-300{% endif %}">
+                        <i class="fas fa-home mr-1"></i> Dashboard
+                    </a>
+                    
+                    <!-- Portfólio Dropdown -->
+                    <div class="relative" x-data="{ open: false }">
+                        <button @click="open = !open" class="hover:text-gray-300 transition-colors flex items-center">
+                            <i class="fas fa-briefcase mr-1"></i> Portfólio <i class="fas fa-chevron-down ml-1 text-xs"></i>
+                        </button>
+                        <div x-show="open" @click.away="open = false" x-cloak 
+                             class="absolute top-full left-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
+                            <a href="/portfolio" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                <i class="fas fa-briefcase mr-2"></i> Carteira
+                            </a>
+                            <a href="/evolution" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                <i class="fas fa-chart-area mr-2"></i> Evolução
+                            </a>
+                            <a href="/rentabilidade" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                <i class="fas fa-percentage mr-2"></i> Rentabilidade
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Proventos e Transações Dropdown -->
+                    <div class="relative" x-data="{ open: false }">
+                        <button @click="open = !open" class="hover:text-gray-300 transition-colors flex items-center">
+                            <i class="fas fa-coins mr-1"></i> Movimentações <i class="fas fa-chevron-down ml-1 text-xs"></i>
+                        </button>
+                        <div x-show="open" @click.away="open = false" x-cloak 
+                             class="absolute top-full left-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
+                            <a href="/dividends" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                <i class="fas fa-coins mr-2"></i> Proventos
+                            </a>
+                            <a href="/contributions" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                <i class="fas fa-plus-circle mr-2"></i> Aportes
+                            </a>
+                            <a href="/ganhos-gerais" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                <i class="fas fa-dollar-sign mr-2"></i> Ganhos Gerais
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Investimentos Dropdown -->
+                    <div class="relative" x-data="{ open: false }">
+                        <button @click="open = !open" class="hover:text-gray-300 transition-colors flex items-center">
+                            <i class="fas fa-chart-line mr-1"></i> Investimentos <i class="fas fa-chevron-down ml-1 text-xs"></i>
+                        </button>
+                        <div x-show="open" @click.away="open = false" x-cloak 
+                             class="absolute top-full left-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
+                            <a href="/simulador-renda-fixa" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                <i class="fas fa-calculator mr-2"></i> Simulador RF
+                            </a>
+                            <a href="/investimentos-eua" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                <i class="fas fa-flag-usa mr-2"></i> Investimentos EUA
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Configurações Dropdown -->
+                    <div class="relative" x-data="{ open: false }">
+                        <button @click="open = !open" class="hover:text-gray-300 transition-colors flex items-center">
+                            <i class="fas fa-cog mr-1"></i> Configurações <i class="fas fa-chevron-down ml-1 text-xs"></i>
+                        </button>
+                        <div x-show="open" @click.away="open = false" x-cloak 
+                             class="absolute top-full left-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
+                            <a href="/categories" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                <i class="fas fa-tags mr-2"></i> Categorias
+                            </a>
+                            <a href="/data-update" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                <i class="fas fa-sync-alt mr-2"></i> Atualizar
+                            </a>
+                        </div>
+                    </div>
                 </div>
                 <!-- Menu Mobile (Hamburguer) -->
                 <div class="mobile-menu flex items-center" style="display:none;">
@@ -107,18 +170,47 @@
         </div>
         <!-- Dropdown mobile -->
         <div id="mobileMenuDropdown" class="fixed top-0 left-0 w-full h-full bg-black bg-opacity-60 z-50 hidden">
-            <div class="bg-white text-gray-900 w-4/5 max-w-xs h-full p-6 flex flex-col gap-4 shadow-lg">
+            <div class="bg-white text-gray-900 w-4/5 max-w-xs h-full p-6 flex flex-col gap-4 shadow-lg overflow-y-auto">
                 <button id="closeMobileMenu" class="self-end mb-4"><i class="fas fa-times text-2xl"></i></button>
                 <a href="/" class="py-2 border-b border-gray-200">Dashboard</a>
-                <a href="/portfolio" class="py-2 border-b border-gray-200">Carteira</a>
-                <a href="/evolution" class="py-2 border-b border-gray-200">Evolução</a>
-                <a href="/rentabilidade" class="py-2 border-b border-gray-200">Rentabilidade</a>
-                <a href="/dividends" class="py-2 border-b border-gray-200">Proventos</a>
-                <a href="/contributions" class="py-2 border-b border-gray-200">Aportes</a>
-                <a href="/categories" class="py-2 border-b border-gray-200">Categorias</a>
-                <a href="/data-update" class="py-2 border-b border-gray-200">Atualizar</a>
-                <a href="/ganhos-gerais" class="py-2 border-b border-gray-200">Ganhos Gerais</a>
-                <a href="/simulador-renda-fixa" class="py-2">Simulador RF</a>
+                
+                <!-- Portfólio -->
+                <div class="border-b border-gray-200">
+                    <div class="font-semibold text-gray-700 py-2">Portfólio</div>
+                    <div class="pl-4 space-y-2 pb-2">
+                        <a href="/portfolio" class="block py-1 text-sm">Carteira</a>
+                        <a href="/evolution" class="block py-1 text-sm">Evolução</a>
+                        <a href="/rentabilidade" class="block py-1 text-sm">Rentabilidade</a>
+                    </div>
+                </div>
+
+                <!-- Movimentações -->
+                <div class="border-b border-gray-200">
+                    <div class="font-semibold text-gray-700 py-2">Movimentações</div>
+                    <div class="pl-4 space-y-2 pb-2">
+                        <a href="/dividends" class="block py-1 text-sm">Proventos</a>
+                        <a href="/contributions" class="block py-1 text-sm">Aportes</a>
+                        <a href="/ganhos-gerais" class="block py-1 text-sm">Ganhos Gerais</a>
+                    </div>
+                </div>
+
+                <!-- Investimentos -->
+                <div class="border-b border-gray-200">
+                    <div class="font-semibold text-gray-700 py-2">Investimentos</div>
+                    <div class="pl-4 space-y-2 pb-2">
+                        <a href="/simulador-renda-fixa" class="block py-1 text-sm">Simulador RF</a>
+                        <a href="/investimentos-eua" class="block py-1 text-sm">Investimentos EUA</a>
+                    </div>
+                </div>
+
+                <!-- Configurações -->
+                <div>
+                    <div class="font-semibold text-gray-700 py-2">Configurações</div>
+                    <div class="pl-4 space-y-2">
+                        <a href="/categories" class="block py-1 text-sm">Categorias</a>
+                        <a href="/data-update" class="block py-1 text-sm">Atualizar</a>
+                    </div>
+                </div>
             </div>
         </div>
     </nav>

@@ -15,6 +15,9 @@ SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_ANON_KEY = os.getenv('SUPABASE_ANON_KEY')
 SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_KEY')
 
+# Gemini LLM configuration
+GOOGLE_GEMINI_API_KEY = os.getenv('GOOGLE_GEMINI_API_KEY')
+
 # Initialize Supabase client
 def get_supabase_client(service_key=False):
     """Get Supabase client with appropriate key"""

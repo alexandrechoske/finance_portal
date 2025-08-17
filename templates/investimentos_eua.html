@@ -1,0 +1,575 @@
+{% extends "base.html" %}
+
+{% block title %}Investimentos EUA - Meu Patrimônio{% endblock %}
+
+{% block content %}
+<div x-data="investimentosEUA()" x-init="init()" x-cloak>
+    <!-- Header -->
+    <div class="mb-8">
+        <div class="flex justify-between items-center">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">Cadastro de Investimentos EUA</h1>
+                <p class="text-gray-600 mt-2">Upload de PDF da corretora para análise automática com IA</p>
+            </div>
+            <div class="flex gap-3">
+                <button @click="clearAll()" 
+                        class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
+                    <i class="fas fa-trash"></i>
+                    Limpar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Workflow Steps -->
+    <div class="bg-white rounded-lg shadow-lg p-6 card-shadow mb-8">
+        <div class="flex items-center justify-between mb-6">
+            <h3 class="text-lg font-semibold text-gray-900">Fluxo de Cadastro</h3>
+            <div class="text-sm text-gray-500">
+                Etapa <span x-text="currentStep"></span> de 3
+            </div>
+        </div>
+        
+        <div class="flex items-center space-x-4">
+            <!-- Step 1: Upload -->
+            <div class="flex items-center">
+                <div class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium"
+                     :class="currentStep >= 1 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-600'">
+                    1
+                </div>
+                <span class="ml-2 text-sm" :class="currentStep >= 1 ? 'text-blue-600 font-medium' : 'text-gray-500'">
+                    Upload PDF
+                </span>
+            </div>
+            
+            <div class="flex-1 h-0.5" :class="currentStep >= 2 ? 'bg-blue-500' : 'bg-gray-200'"></div>
+            
+            <!-- Step 2: Análise IA -->
+            <div class="flex items-center">
+                <div class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium"
+                     :class="currentStep >= 2 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-600'">
+                    2
+                </div>
+                <span class="ml-2 text-sm" :class="currentStep >= 2 ? 'text-blue-600 font-medium' : 'text-gray-500'">
+                    Análise IA
+                </span>
+            </div>
+            
+            <div class="flex-1 h-0.5" :class="currentStep >= 3 ? 'bg-green-500' : 'bg-gray-200'"></div>
+            
+            <!-- Step 3: Resultados Agrupados -->
+            <div class="flex items-center">
+                <div class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium"
+                     :class="currentStep >= 3 ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600'">
+                    3
+                </div>
+                <span class="ml-2 text-sm" :class="currentStep >= 3 ? 'text-green-600 font-medium' : 'text-gray-500'">
+                    Resultados
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 1: Upload PDF -->
+    <div x-show="currentStep === 1" class="bg-white rounded-lg shadow-lg card-shadow mb-8">
+        <div class="p-6 border-b border-gray-200">
+            <h3 class="text-lg font-semibold text-gray-900">
+                <i class="fas fa-upload mr-2"></i>
+                Upload do Arquivo PDF
+            </h3>
+            <p class="text-gray-600 mt-1">Faça upload do extrato/statement da corretora em formato PDF</p>
+        </div>
+        
+        <div class="p-6">
+            <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-gray-400 transition-colors"
+                 @dragover.prevent
+                 @drop.prevent="handleFileDrop($event)">
+                <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-4"></i>
+                <p class="text-lg font-medium text-gray-700 mb-2">Arraste o arquivo PDF aqui</p>
+                <p class="text-gray-500 mb-4">ou</p>
+                <input type="file" @change="handleFileSelect($event)" accept=".pdf" class="hidden" id="fileInput">
+                <label for="fileInput" class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg cursor-pointer transition-colors">
+                    Selecionar Arquivo
+                </label>
+                <p class="text-sm text-gray-500 mt-4">Apenas arquivos PDF são aceitos</p>
+            </div>
+            
+            <div x-show="selectedFile" class="mt-6 p-4 bg-gray-50 rounded-lg">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center">
+                        <i class="fas fa-file-pdf text-red-500 mr-3"></i>
+                        <div>
+                            <p class="font-medium text-gray-900" x-text="selectedFile?.name"></p>
+                            <p class="text-sm text-gray-500" x-text="formatFileSize(selectedFile?.size)"></p>
+                        </div>
+                    </div>
+                    <button @click="removeFile()" class="text-red-500 hover:text-red-700">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="mt-6 flex justify-end">
+                <button @click="uploadAndAnalyze()" 
+                        :disabled="!selectedFile || uploading"
+                        class="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white px-6 py-2 rounded-lg transition-colors flex items-center gap-2">
+                    <i class="fas" :class="uploading ? 'fa-spinner fa-spin' : 'fa-arrow-right'"></i>
+                    <span x-text="uploading ? 'Analisando...' : 'Analisar com IA'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 2: Análise em Progresso -->
+    <div x-show="currentStep === 2" class="bg-white rounded-lg shadow-lg card-shadow mb-8">
+        <div class="p-6 border-b border-gray-200">
+            <h3 class="text-lg font-semibold text-gray-900">
+                <i class="fas fa-brain mr-2"></i>
+                Análise com Inteligência Artificial
+            </h3>
+        </div>
+        
+        <div class="p-6 text-center">
+            <div class="mb-6">
+                <i class="fas fa-robot text-6xl text-blue-500 mb-4"></i>
+                <p class="text-lg font-medium text-gray-700 mb-2">Analisando transações...</p>
+                <p class="text-gray-500">A IA está lendo o PDF e extraindo as informações das transações</p>
+            </div>
+            
+            <div class="bg-gray-100 rounded-lg p-4 mb-6">
+                <div class="flex items-center justify-center space-x-2 mb-2">
+                    <div class="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                    <div class="w-2 h-2 bg-blue-500 rounded-full animate-pulse" style="animation-delay: 0.2s"></div>
+                    <div class="w-2 h-2 bg-blue-500 rounded-full animate-pulse" style="animation-delay: 0.4s"></div>
+                </div>
+                <p class="text-sm text-gray-600" x-text="analysisStatus"></p>
+            </div>
+            
+            <div x-show="analysisError" class="bg-red-50 border border-red-200 rounded-lg p-4">
+                <i class="fas fa-exclamation-triangle text-red-500 mr-2"></i>
+                <span class="text-red-700" x-text="analysisError"></span>
+                <button @click="currentStep = 1; analysisError = ''" class="ml-4 text-red-600 hover:text-red-800">
+                    Tentar novamente
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 3: Conferência dos Dados -->
+    <div x-show="currentStep === 3" class="bg-white rounded-lg shadow-lg card-shadow mb-8">
+        <div class="p-6 border-b border-gray-200">
+            <h3 class="text-lg font-semibold text-gray-900">
+                <i class="fas fa-check-circle mr-2"></i>
+                Conferência dos Dados Extraídos
+            </h3>
+            <p class="text-gray-600 mt-1">Verifique se as informações estão corretas antes de inserir no sistema</p>
+        </div>
+        
+        <div class="p-6">
+            <div x-show="extractedData.length > 0">
+                <div class="mb-6">
+                    <h4 class="font-medium text-gray-900 mb-4">
+                        Transações Encontradas: <span class="text-blue-600" x-text="extractedData.length"></span>
+                    </h4>
+                    
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ativo</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantidade</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Preço</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                <template x-for="(transaction, index) in extractedData" :key="index">
+                                    <tr>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <input type="date" x-model="transaction.date" 
+                                                   class="w-full px-2 py-1 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500">
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <input type="text" x-model="transaction.asset" 
+                                                   class="w-full px-2 py-1 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
+                                                   placeholder="Ex: AAPL">
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <input type="number" step="0.00000001" x-model="transaction.qty" 
+                                                   class="w-full px-2 py-1 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500">
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <input type="number" step="0.01" x-model="transaction.price" 
+                                                   class="w-full px-2 py-1 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500">
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <input type="number" step="0.01" x-model="transaction.total" 
+                                                   class="w-full px-2 py-1 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500">
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <button @click="removeTransaction(index)" 
+                                                    class="text-red-500 hover:text-red-700">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="flex justify-between">
+                    <button @click="addTransaction()" 
+                            class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
+                        <i class="fas fa-plus"></i>
+                        Adicionar Transação
+                    </button>
+                    
+                    <div class="flex gap-3">
+                        <button @click="currentStep = 1" 
+                                class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors">
+                            Voltar
+                        </button>
+                        <button @click="groupTransactionsAndShow()" 
+                                :disabled="extractedData.length === 0"
+                                class="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white px-6 py-2 rounded-lg transition-colors flex items-center gap-2">
+                            <i class="fas fa-layer-group"></i>
+                            Ver Agrupamento
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div x-show="extractedData.length === 0" class="text-center py-8">
+                <i class="fas fa-exclamation-circle text-yellow-500 text-4xl mb-4"></i>
+                <p class="text-lg text-gray-700">Nenhuma transação foi extraída</p>
+                <p class="text-gray-500">Verifique o arquivo PDF e tente novamente</p>
+                <button @click="currentStep = 1" class="mt-4 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg">
+                    Voltar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 3: Transações Agrupadas -->
+    <div x-show="currentStep === 3" class="bg-white rounded-lg shadow-lg card-shadow mb-8">
+        <div class="p-6 border-b border-gray-200">
+            <h3 class="text-lg font-semibold text-gray-900">
+                <i class="fas fa-layer-group mr-2"></i>
+                Transações Agrupadas para Inserção Manual
+            </h3>
+            <p class="text-gray-600 mt-1">
+                As transações foram agrupadas por ativo e preço de compra para facilitar a inserção manual no MyProfit
+            </p>
+        </div>
+        
+        <div class="p-6">
+            <div class="space-y-6">
+                <template x-for="(group, asset) in groupedTransactions" :key="asset">
+                    <div class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50">
+                        <h4 class="font-bold text-xl text-blue-600 mb-4 flex items-center">
+                            <i class="fas fa-chart-line mr-2"></i>
+                            <span x-text="asset"></span>
+                        </h4>
+                        
+                        <template x-for="(priceGroup, price) in group" :key="price">
+                            <div class="mb-4 p-4 bg-white rounded-lg border border-gray-300 shadow-sm">
+                                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-3">
+                                    <div class="bg-green-50 p-3 rounded-lg text-center">
+                                        <div class="text-sm font-medium text-gray-600 mb-1">Preço Unitário</div>
+                                        <div class="text-xl font-bold text-green-600" x-text="'$' + parseFloat(price).toFixed(3)"></div>
+                                    </div>
+                                    <div class="bg-blue-50 p-3 rounded-lg text-center">
+                                        <div class="text-sm font-medium text-gray-600 mb-1">Quantidade Total</div>
+                                        <div class="text-xl font-bold text-blue-600" x-text="priceGroup.totalQty.toFixed(6)"></div>
+                                    </div>
+                                    <div class="bg-purple-50 p-3 rounded-lg text-center">
+                                        <div class="text-sm font-medium text-gray-600 mb-1">Valor Total</div>
+                                        <div class="text-xl font-bold text-purple-600" x-text="'$' + priceGroup.totalAmount.toFixed(2)"></div>
+                                    </div>
+                                    <div class="bg-orange-50 p-3 rounded-lg text-center">
+                                        <div class="text-sm font-medium text-gray-600 mb-1">Transações</div>
+                                        <div class="text-xl font-bold text-orange-600" x-text="priceGroup.transactions.length"></div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Instruções para inserção manual -->
+                                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-3">
+                                    <div class="text-sm font-medium text-yellow-800 mb-2">
+                                        📝 Para inserir no MyProfit:
+                                    </div>
+                                    <div class="text-sm text-yellow-700 space-y-1">
+                                        <div>• Ativo: <strong x-text="asset"></strong></div>
+                                        <div>• Quantidade: <strong x-text="priceGroup.totalQty.toFixed(6)"></strong></div>
+                                        <div>• Preço: <strong x-text="'$' + parseFloat(price).toFixed(3)"></strong></div>
+                                        <div>• Total: <strong x-text="'$' + priceGroup.totalAmount.toFixed(2)"></strong></div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Detalhes das transações individuais -->
+                                <details class="cursor-pointer">
+                                    <summary class="text-sm text-gray-600 hover:text-gray-800 font-medium flex items-center">
+                                        <i class="fas fa-eye mr-2"></i>
+                                        Ver transações individuais que compõem este grupo
+                                    </summary>
+                                    <div class="mt-3 space-y-2">
+                                        <template x-for="(transaction, index) in priceGroup.transactions" :key="index">
+                                            <div class="text-sm bg-gray-50 p-3 rounded border-l-4 border-blue-400">
+                                                <div class="grid grid-cols-4 gap-4">
+                                                    <div>
+                                                        <span class="font-medium text-gray-600">Data:</span>
+                                                        <span x-text="transaction.date" class="text-gray-800"></span>
+                                                    </div>
+                                                    <div>
+                                                        <span class="font-medium text-gray-600">Qty:</span>
+                                                        <span x-text="transaction.qty.toFixed(6)" class="text-blue-600 font-mono"></span>
+                                                    </div>
+                                                    <div>
+                                                        <span class="font-medium text-gray-600">Preço:</span>
+                                                        <span x-text="'$' + transaction.price.toFixed(3)" class="text-green-600 font-mono"></span>
+                                                    </div>
+                                                    <div>
+                                                        <span class="font-medium text-gray-600">Total:</span>
+                                                        <span x-text="'$' + transaction.total.toFixed(2)" class="text-purple-600 font-mono"></span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </details>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+            </div>
+            
+            <!-- Resumo Total -->
+            <div class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h5 class="font-bold text-blue-800 mb-2 flex items-center">
+                    <i class="fas fa-calculator mr-2"></i>
+                    Resumo Total
+                </h5>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                    <div>
+                        <span class="font-medium text-blue-700">Total de Ativos:</span>
+                        <span x-text="Object.keys(groupedTransactions).length" class="text-blue-800 font-bold ml-1"></span>
+                    </div>
+                    <div>
+                        <span class="font-medium text-blue-700">Total de Grupos:</span>
+                        <span x-text="getTotalGroups()" class="text-blue-800 font-bold ml-1"></span>
+                    </div>
+                    <div>
+                        <span class="font-medium text-blue-700">Transações Originais:</span>
+                        <span x-text="extractedData.length" class="text-blue-800 font-bold ml-1"></span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex justify-between mt-6">
+                <button @click="currentStep = 2" 
+                        class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
+                    <i class="fas fa-arrow-left"></i>
+                    Voltar
+                </button>
+                
+                <button @click="startNewAnalysis()" 
+                        class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg transition-colors flex items-center gap-2">
+                    <i class="fas fa-file-upload"></i>
+                    Processar Novo Arquivo
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function investimentosEUA() {
+    return {
+        // Estado
+        currentStep: 1,
+        selectedFile: null,
+        uploading: false,
+        analysisStatus: 'Preparando análise...',
+        analysisError: '',
+        extractedData: [],
+        groupedTransactions: {},
+
+        // Inicialização
+        init() {
+            // Componente inicializado
+        },
+
+        // Upload e seleção de arquivo
+        handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file && file.type === 'application/pdf') {
+                this.selectedFile = file;
+            } else {
+                this.showToast('Por favor, selecione um arquivo PDF válido', 'error');
+            }
+        },
+
+        handleFileDrop(event) {
+            const file = event.dataTransfer.files[0];
+            if (file && file.type === 'application/pdf') {
+                this.selectedFile = file;
+            } else {
+                this.showToast('Por favor, selecione um arquivo PDF válido', 'error');
+            }
+        },
+
+        removeFile() {
+            this.selectedFile = null;
+            document.getElementById('fileInput').value = '';
+        },
+
+        formatFileSize(bytes) {
+            if (!bytes) return '';
+            const mb = bytes / (1024 * 1024);
+            return `${mb.toFixed(2)} MB`;
+        },
+
+        // Upload e análise
+        async uploadAndAnalyze() {
+            if (!this.selectedFile) return;
+
+            this.uploading = true;
+            this.currentStep = 2;
+            this.analysisStatus = 'Fazendo upload do arquivo...';
+
+            try {
+                const formData = new FormData();
+                formData.append('file', this.selectedFile);
+
+                this.analysisStatus = 'Analisando PDF com IA...';
+                
+                const response = await fetch('/api/investimentos-eua/analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    this.extractedData = result.transactions || [];
+                    this.showToast(`${this.extractedData.length} transações extraídas com sucesso`, 'success');
+                    // Automaticamente agrupar e ir para próxima etapa
+                    this.groupTransactionsAndShow();
+                } else {
+                    this.analysisError = result.error || 'Erro desconhecido na análise';
+                }
+            } catch (error) {
+                this.analysisError = 'Erro de conexão: ' + error.message;
+            } finally {
+                this.uploading = false;
+            }
+        },
+
+        // Agrupamento de transações
+        groupTransactionsAndShow() {
+            this.groupTransactions();
+            this.currentStep = 3;
+        },
+
+        groupTransactions() {
+            const grouped = {};
+            
+            this.extractedData.forEach(transaction => {
+                const asset = transaction.asset;
+                const price = parseFloat(transaction.price).toFixed(3); // Agrupar preços similares
+                
+                if (!grouped[asset]) {
+                    grouped[asset] = {};
+                }
+                
+                if (!grouped[asset][price]) {
+                    grouped[asset][price] = {
+                        totalQty: 0,
+                        totalAmount: 0,
+                        transactions: []
+                    };
+                }
+                
+                grouped[asset][price].totalQty += parseFloat(transaction.qty);
+                grouped[asset][price].totalAmount += parseFloat(transaction.total);
+                grouped[asset][price].transactions.push(transaction);
+            });
+            
+            this.groupedTransactions = grouped;
+        },
+
+        getTotalGroups() {
+            let total = 0;
+            Object.values(this.groupedTransactions).forEach(asset => {
+                total += Object.keys(asset).length;
+            });
+            return total;
+        },
+
+        // Gerenciamento de transações
+        addTransaction() {
+            this.extractedData.push({
+                date: new Date().toISOString().split('T')[0],
+                asset: '',
+                qty: 0,
+                price: 0,
+                total: 0
+            });
+        },
+
+        removeTransaction(index) {
+            this.extractedData.splice(index, 1);
+        },
+
+        // Utilitários
+        startNewAnalysis() {
+            this.currentStep = 1;
+            this.selectedFile = null;
+            this.extractedData = [];
+            this.groupedTransactions = {};
+            this.analysisError = '';
+            document.getElementById('fileInput').value = '';
+        },
+
+        clearAll() {
+            this.startNewAnalysis();
+        },
+
+        showToast(message, type = 'info') {
+            // Criar notificação visual simples
+            const toast = document.createElement('div');
+            toast.className = `fixed top-4 right-4 z-50 px-6 py-3 rounded-lg text-white font-medium transform transition-all duration-300 translate-x-full`;
+            
+            // Cores baseadas no tipo
+            const colors = {
+                'success': 'bg-green-500',
+                'error': 'bg-red-500',
+                'info': 'bg-blue-500',
+                'warning': 'bg-yellow-500'
+            };
+            
+            toast.className += ' ' + (colors[type] || colors['info']);
+            toast.textContent = message;
+            
+            document.body.appendChild(toast);
+            
+            // Animar entrada
+            setTimeout(() => {
+                toast.classList.remove('translate-x-full');
+            }, 100);
+            
+            // Remover após 3 segundos
+            setTimeout(() => {
+                toast.classList.add('translate-x-full');
+                setTimeout(() => {
+                    document.body.removeChild(toast);
+                }, 300);
+            }, 3000);
+        }
+    }
+}
+</script>
+{% endblock %}
