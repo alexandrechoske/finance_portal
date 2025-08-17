@@ -10,6 +10,8 @@
     <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
+    /* Hide elements until Alpine initializes */
+    [x-cloak] { display: none !important; }
         .gradient-bg {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         }
@@ -93,6 +95,7 @@
                     <a href="/categories" class="hover:text-gray-300 transition-colors {% if request.endpoint == 'pages.categories' %}text-yellow-300{% endif %}"><i class="fas fa-tags mr-1"></i> Categorias</a>
                     <a href="/data-update" class="hover:text-gray-300 transition-colors {% if request.endpoint == 'pages.data_update' %}text-yellow-300{% endif %}"><i class="fas fa-sync-alt mr-1"></i> Atualizar</a>
                     <a href="/ganhos-gerais" class="hover:text-gray-300 transition-colors {% if request.endpoint == 'pages.ganhos_gerais' %}text-yellow-300{% endif %}"><i class="fas fa-dollar-sign mr-1"></i> Ganhos Gerais</a>
+                    <a href="/simulador-renda-fixa" class="hover:text-gray-300 transition-colors {% if request.endpoint == 'pages.simulador_renda_fixa' %}text-yellow-300{% endif %}"><i class="fas fa-calculator mr-1"></i> Simulador RF</a>
                 </div>
                 <!-- Menu Mobile (Hamburguer) -->
                 <div class="mobile-menu flex items-center" style="display:none;">
@@ -113,8 +116,9 @@
                 <a href="/dividends" class="py-2 border-b border-gray-200">Proventos</a>
                 <a href="/contributions" class="py-2 border-b border-gray-200">Aportes</a>
                 <a href="/categories" class="py-2 border-b border-gray-200">Categorias</a>
-                <a href="/data-update" class="py-2">Atualizar</a>
-                <a href="/ganhos-gerais" class="py-2">Ganhos Gerais</a>
+                <a href="/data-update" class="py-2 border-b border-gray-200">Atualizar</a>
+                <a href="/ganhos-gerais" class="py-2 border-b border-gray-200">Ganhos Gerais</a>
+                <a href="/simulador-renda-fixa" class="py-2">Simulador RF</a>
             </div>
         </div>
     </nav>

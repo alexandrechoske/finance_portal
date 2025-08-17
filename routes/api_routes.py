@@ -7,6 +7,7 @@ import pandas as pd
 import re
 import time
 import threading
+import traceback
 from functools import wraps
 import requests
 
@@ -160,6 +161,15 @@ def execute_optimized_query(table_name, select_clause='*', filters=None, order_b
 supabase_url = os.getenv('SUPABASE_URL')
 supabase_key = os.getenv('SUPABASE_ANON_KEY')
 supabase: Client = create_client(supabase_url, supabase_key)
+
+# Initialize Supabase client with service role for write operations (bypasses RLS)
+supabase_service_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
+supabase_service: Client = None
+if supabase_service_key:
+    supabase_service = create_client(supabase_url, supabase_service_key)
+    logger.info("Service role client initialized for write operations")
+else:
+    logger.warning("SUPABASE_SERVICE_ROLE_KEY not found - write operations may fail due to RLS")
 
 # Create blueprint
 api_bp = Blueprint('api', __name__)
@@ -631,21 +641,92 @@ def create_ganho():
     """Create a new ganho record in ganhos_gerais"""
     try:
         data = request.get_json() or {}
-        # Minimal validation/normalization
-        data = {
-            'dt_lcto': data.get('dt_lcto'),
+        logger.info(f"Received data: {data}")
+        
+        # Validate required fields
+        if not data.get('dt_lcto'):
+            return jsonify({'error': 'Campo dt_lcto é obrigatório'}), 400
+        if not data.get('des_lcto'):
+            return jsonify({'error': 'Campo des_lcto é obrigatório'}), 400
+        if not data.get('vlr_lcto'):
+            return jsonify({'error': 'Campo vlr_lcto é obrigatório'}), 400
+        
+        # Prepare data for insertion - all fields as text per schema
+        # Convert date format to match expected format (YYYY-MM-DD HH:MM:SS)
+        dt_lcto = data.get('dt_lcto')
+        if dt_lcto and len(dt_lcto) == 10:  # Format YYYY-MM-DD
+            dt_lcto = dt_lcto + " 00:00:00"  # Add time component
+        
+        insert_data = {
+            'dt_lcto': dt_lcto,
             'des_lcto': data.get('des_lcto'),
-            'vlr_lcto': data.get('vlr_lcto'),
+            'vlr_lcto': str(data.get('vlr_lcto')),  # Ensure string format
             'categoria_lcto': data.get('categoria_lcto'),
             'classe_lcto': data.get('classe_lcto')
         }
-        resp = supabase.table('ganhos_gerais').insert(data).execute()
-        inserted = resp.data[0] if resp.data else None
-        return jsonify(inserted), 201
+        
+        # Insert into ganhos_gerais table
+        logger.info(f"Attempting to insert data: {insert_data}")
+        
+        # Use service role client for writes if available, otherwise fall back to anon
+        client = supabase_service if supabase_service else supabase
+        if not supabase_service:
+            logger.warning("Using anon client for write operation - may fail due to RLS")
+        
+        try:
+            resp = client.table('ganhos_gerais').insert(insert_data).execute()
+            logger.info(f"Supabase response: {resp}")
+            
+            if resp.data and len(resp.data) > 0:
+                inserted = resp.data[0]
+                return jsonify({'success': True, 'data': inserted}), 201
+            else:
+                logger.error(f"No data returned from insert operation: {resp}")
+                return jsonify({'error': 'Failed to insert record'}), 500
+                
+        except Exception as insert_error:
+            logger.error(f"Insert failed with error: {insert_error}")
+            
+            # If it's RLS error, try to provide helpful information
+            if "row-level security policy" in str(insert_error):
+                return jsonify({
+                    'error': 'RLS policy violation', 
+                    'message': 'The Supabase table has Row Level Security enabled. Please either: 1) Disable RLS for ganhos_gerais table, 2) Create appropriate RLS policies, or 3) Set SUPABASE_SERVICE_ROLE_KEY environment variable',
+                    'details': str(insert_error)
+                }), 403
+            else:
+                raise insert_error
+            
     except Exception as e:
         logger.error(f'Error creating ganho: {e}')
-        return jsonify({'error': 'Failed to create ganho'}), 500
+        import traceback
+        logger.error(f'Traceback: {traceback.format_exc()}')
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
+
+@api_bp.route('/ganhos/options', methods=['GET'])
+def get_ganhos_form_options():
+    """Get unique categories and classes from ganhos_gerais for form autocomplete"""
+    try:
+        # Get unique categories
+        categories_resp = supabase.table('ganhos_gerais').select('categoria_lcto').execute()
+        categories = list(set([item['categoria_lcto'] for item in categories_resp.data if item['categoria_lcto']]))
+        categories.sort()
+        
+        # Get unique classes
+        classes_resp = supabase.table('ganhos_gerais').select('classe_lcto').execute()
+        classes = list(set([item['classe_lcto'] for item in classes_resp.data if item['classe_lcto']]))
+        classes.sort()
+        
+        return jsonify({
+            'success': True, 
+            'categories': categories,
+            'classes': classes
+        })
+        
+    except Exception as e:
+        logger.error(f'Error getting ganhos options: {e}')
+        return jsonify({'error': 'Failed to get options'}), 500
 
 @api_bp.route('/ganhos/import', methods=['POST'])
 def import_ganhos_bulk():
@@ -1793,6 +1874,154 @@ def debug_transactions_categories():
 @api_bp.route('/performance', methods=['GET'])
 @optimized_cache_headers
 def get_performance_data():
+    """Get performance data for rentabilidade page"""
+    try:
+        # Implementation here
+        return jsonify({
+            'status': 'success',
+            'data': []
+        })
+    except Exception as e:
+        logger.error(f"Error getting performance data: {e}")
+        return jsonify({'error': str(e)}), 500
+
+# -----------------------------
+# Simulador de Renda Fixa
+# -----------------------------
+@api_bp.route('/renda-fixa/investments', methods=['GET'])
+@optimized_cache_headers
+def get_renda_fixa_investments():
+    """Get featured investments from external API"""
+    try:
+        import requests
+        
+        # Headers conforme o arquivo MD
+        headers = {
+            'accept': 'application/json, text/plain, */*',
+            'accept-language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+            'content-type': 'application/json',
+            'g-rcp-tkn': '03AFcWeA6wtX3blg_Uibum9MeoU_WmVT8aUILhI72vL3A70H4teAsgMPqpncyWTRdxinOkU4MniQDSF5ccf3klxBoZk_m8eq8O1ALBfNq283TN8XFCQCTnPeePK2nTFUMjrTkfZk4pPTuEzNGvE9keOpfnndH1af_LotGQiCMyAdvz_HArdC1zzuNRpiMPbreFR9lV9RcGnAGL4CQ_ecUBiHM6wwDA2ASgK4522SBBdSrT-aGxhQhurX-EIZTXEn6BW1QDC9RyLmcu7rXmog3SwTVUq5GxY7lVbUOmzKj3oJfmbaV1flVGVG5dRxOEkonWDKhEeGF53p85OmmyUZgigGFt93L0-K5GvNgckkqMnpeQbuvVlB6zlliZMK_mAvi1LKVYASMm3TTUMqr_XNDjcEjbyJvuRtj2qMxqg6edD28n8URlVTXnHP-0-xOV6W72oZRtwUdlj4mgfNUAbwDxGJyp3CM4459cY9GlQVCVncW48Sz2ik0_XOdQcYNobfGf9S8eOWoiKu8GX_9QcLXB2WsvLb9Zp6Is0evvOa7KLcik7-flR2n7qXEJUAhK0IkWVo40gPyjBVMRP9j962FAjJigAAYXltKpB34QPLh8ZtU9QR2e0qjSqeyDHdCWybq2dDbedvwhzPJPPEerPfQv6lTXoSUvL87e3r-c_97VBTzwpOyAuFdsVB8mvU3jsGk3_KYYzmAztmMOAVIa_OnsMCGuujzVKcEVurHDA-8ctXuWvF9sjS3svFK5aPp9pNJ_qXCZ8WO2to2EwR7PTYBELKtIu6lMsk-IGjR7sNzeunJNzBKrR-hRuCEsOSGC4fFLW0WGWO_xHjKpTa99Y_9Cis45ckAKSyWPv4wHbqNFNOEYfBq4_h_M1UVgJ3Oi60SVQLklTI54je-qAWZHquJrKSp0Tt_DDADG22ROFxg-DjykziJbTyfB969PS5biCpDjpc391t25dWedrCyw5gKedhUCbzUHm-uqbRcbiqhzb3yUYdktJGVqOFc',
+            'origin': 'https://apprendafixa.com.br',
+            'priority': 'u=1, i',
+            'referer': 'https://apprendafixa.com.br/',
+            'sec-ch-ua': '"Not;A=Brand";v="99", "Google Chrome";v="139", "Chromium";v="139"',
+            'sec-ch-ua-mobile': '?1',
+            'sec-ch-ua-platform': '"Android"',
+            'sec-fetch-dest': 'empty',
+            'sec-fetch-mode': 'cors',
+            'sec-fetch-site': 'same-site',
+            'user-agent': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Mobile Safari/537.36'
+        }
+        
+        # Payload conforme o arquivo MD
+        payload = {
+            "idx": [],
+            "corretora": [],
+            "emissor": []
+        }
+        
+        # Fazer request para a API externa
+        response = requests.post(
+            'https://api2.apprendafixa.com.br/vn/get_featured_investments',
+            headers=headers,
+            json=payload,
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            investments = response.json()
+            return jsonify({
+                'status': 'success',
+                'investments': investments,
+                'count': len(investments)
+            })
+        else:
+            logger.error(f"External API error: {response.status_code} - {response.text}")
+            return jsonify({
+                'error': 'Erro ao buscar investimentos na API externa',
+                'status_code': response.status_code
+            }), 500
+            
+    except requests.exceptions.Timeout:
+        logger.error("Timeout ao acessar API externa")
+        return jsonify({'error': 'Timeout ao buscar investimentos'}), 504
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Request error: {e}")
+        return jsonify({'error': 'Erro de conexão com a API externa'}), 503
+    except Exception as e:
+        logger.error(f"Error getting renda fixa investments: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@api_bp.route('/renda-fixa/simulate', methods=['POST'])
+def simulate_renda_fixa_investment():
+    """Simulate investment returns for a specific investment"""
+    try:
+        import requests
+        
+        data = request.get_json()
+        investment = data.get('investment')
+        amount = data.get('amount')
+        
+        if not investment or not amount:
+            return jsonify({'error': 'Investment e amount são obrigatórios'}), 400
+        
+        # Headers conforme o arquivo MD
+        headers = {
+            'accept': 'application/json, text/plain, */*',
+            'accept-language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+            'content-type': 'application/json',
+            'origin': 'https://apprendafixa.com.br',
+            'priority': 'u=1, i',
+            'referer': 'https://apprendafixa.com.br/',
+            'sec-ch-ua': '"Not;A=Brand";v="99", "Google Chrome";v="139", "Chromium";v="139"',
+            'sec-ch-ua-mobile': '?1',
+            'sec-ch-ua-platform': '"Android"',
+            'sec-fetch-dest': 'empty',
+            'sec-fetch-mode': 'cors',
+            'sec-fetch-site': 'same-site',
+            'user-agent': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Mobile Safari/537.36'
+        }
+        
+        # Preparar payload conforme o exemplo do arquivo MD
+        payload = {
+            "corretora": investment.get('corretora', ''),
+            "dc": investment.get('dc', 0),
+            "emissor": investment.get('emissor', ''),
+            "incentivada": investment.get('incentivada', False),
+            "liquidez": investment.get('liquidez', ''),
+            "preco": float(amount),
+            "tipo": investment.get('tipo', ''),
+            "taxa": investment.get('taxa', ''),
+            "idx": investment.get('idx', '')
+        }
+        
+        # Fazer request para a API externa
+        response = requests.post(
+            'https://api2.apprendafixa.com.br/vn/compute_private_investment',
+            headers=headers,
+            json=payload,
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            simulation = response.json()
+            return jsonify(simulation)
+        else:
+            logger.error(f"External API simulation error: {response.status_code} - {response.text}")
+            return jsonify({
+                'error': 'Erro ao simular investimento na API externa',
+                'status_code': response.status_code
+            }), 500
+            
+    except requests.exceptions.Timeout:
+        logger.error("Timeout ao simular investimento na API externa")
+        return jsonify({'error': 'Timeout ao simular investimento'}), 504
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Request error during simulation: {e}")
+        return jsonify({'error': 'Erro de conexão com a API externa'}), 503
+    except Exception as e:
+        logger.error(f"Error simulating renda fixa investment: {e}")
+        return jsonify({'error': str(e)}), 500
     """Get performance data by aggregation type including dividends"""
     try:
         aggregation_type = request.args.get('type', 'asset')

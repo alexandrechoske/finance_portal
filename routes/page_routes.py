@@ -48,4 +48,9 @@ def ganhos_gerais():
     """Ganhos Gerais analysis page"""
     return render_template('ganhos_gerais.html')
 
+@page_bp.route('/simulador-renda-fixa')
+def simulador_renda_fixa():
+    """Simulador de Renda Fixa page"""
+    return render_template('simulador_renda_fixa.html')
+
 # CRUD de ganhos é feito via /api/ganhos (padrão das demais páginas)
